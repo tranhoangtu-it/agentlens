@@ -60,8 +60,8 @@ function buildDagreLayout(spans: Span[]): { nodes: Node[]; edges: Edge[] } {
 
   const nodes: Node[] = spans.map((s) => {
     const pos = g.node(s.id)
-    const dur = s.end_ms - s.start_ms
-    const label = `${s.name}\n${dur}ms`
+    const dur = s.end_ms ? s.end_ms - s.start_ms : null
+    const label = dur != null ? `${s.name}\n${dur}ms` : `${s.name}\n⏳ running`
     return {
       id: s.id,
       position: { x: pos.x - NODE_W / 2, y: pos.y - NODE_H / 2 },

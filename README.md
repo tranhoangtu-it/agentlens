@@ -4,8 +4,14 @@
 
 > Unlike LangSmith (paid, cloud-only) and Langfuse (LLM-focused), AgentLens understands agents: tool calls, handoffs, memory reads, and decision trees — not just LLM generations.
 
-<!-- TODO: Add demo GIF here -->
-<!-- ![AgentLens Demo](docs/demo.gif) -->
+### Trace List — see all agent runs at a glance
+![Trace List](docs/screenshots/01-trace-list.png)
+
+### Agent Topology Graph — visualize tool calls, LLM calls, and handoffs
+![Topology Graph](docs/screenshots/02-trace-detail.png)
+
+### Span Detail Panel — inspect any node with input/output, cost, and duration
+![Span Detail](docs/screenshots/03-span-detail.png)
 
 ## Features
 
