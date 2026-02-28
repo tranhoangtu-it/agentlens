@@ -1,5 +1,7 @@
 // API client for alert rules and alert events
 
+import { fetchWithAuth } from './fetch-with-auth'
+
 const BASE = '/api'
 
 export interface AlertRule {
@@ -59,13 +61,13 @@ export async function fetchAlertRules(
   if (params?.metric) qs.set('metric', params.metric)
   if (params?.enabled !== undefined) qs.set('enabled', String(params.enabled))
   const url = qs.toString() ? `${BASE}/alert-rules?${qs}` : `${BASE}/alert-rules`
-  const res = await fetch(url)
+  const res = await fetchWithAuth(url)
   if (!res.ok) throw new Error(`fetchAlertRules failed: ${res.status}`)
   return res.json()
 }
 
 export async function createAlertRule(data: AlertRuleIn): Promise<AlertRule> {
-  const res = await fetch(`${BASE}/alert-rules`, {
+  const res = await fetchWithAuth(`${BASE}/alert-rules`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -78,7 +80,7 @@ export async function updateAlertRule(
   id: string,
   data: Partial<AlertRuleIn>,
 ): Promise<AlertRule> {
-  const res = await fetch(`${BASE}/alert-rules/${id}`, {
+  const res = await fetchWithAuth(`${BASE}/alert-rules/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
@@ -88,7 +90,7 @@ export async function updateAlertRule(
 }
 
 export async function deleteAlertRule(id: string): Promise<void> {
-  const res = await fetch(`${BASE}/alert-rules/${id}`, { method: 'DELETE' })
+  const res = await fetchWithAuth(`${BASE}/alert-rules/${id}`, { method: 'DELETE' })
   if (!res.ok) throw new Error(`deleteAlertRule failed: ${res.status}`)
 }
 
@@ -103,13 +105,13 @@ export async function fetchAlerts(
   if (params?.limit) qs.set('limit', String(params.limit))
   if (params?.offset) qs.set('offset', String(params.offset))
   const url = qs.toString() ? `${BASE}/alerts?${qs}` : `${BASE}/alerts`
-  const res = await fetch(url)
+  const res = await fetchWithAuth(url)
   if (!res.ok) throw new Error(`fetchAlerts failed: ${res.status}`)
   return res.json()
 }
 
 export async function resolveAlert(id: string): Promise<AlertEvent> {
-  const res = await fetch(`${BASE}/alerts/${id}/resolve`, { method: 'PATCH' })
+  const res = await fetchWithAuth(`${BASE}/alerts/${id}/resolve`, { method: 'PATCH' })
   if (!res.ok) throw new Error(`resolveAlert failed: ${res.status}`)
   return res.json()
 }

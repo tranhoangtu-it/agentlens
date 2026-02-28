@@ -38,13 +38,18 @@ def _do_evaluate(trace_id: str, agent_name: str) -> list[AlertEvent]:
     """Core evaluation logic."""
     engine = _get_engine()
     with Session(engine) as session:
-        # Fetch enabled rules matching this agent or wildcard
-        rules = list(session.exec(
-            select(AlertRule).where(
-                AlertRule.enabled == True,
-                (AlertRule.agent_name == agent_name) | (AlertRule.agent_name == "*"),
-            )
-        ).all())
+        # Read user_id from trace for tenant-scoped rule lookup
+        trace_obj = session.get(Trace, trace_id)
+        trace_user_id = trace_obj.user_id if trace_obj else None
+
+        # Fetch enabled rules matching this agent/wildcard AND owned by same user
+        stmt = select(AlertRule).where(
+            AlertRule.enabled == True,
+            (AlertRule.agent_name == agent_name) | (AlertRule.agent_name == "*"),
+        )
+        if trace_user_id:
+            stmt = stmt.where(AlertRule.user_id == trace_user_id)
+        rules = list(session.exec(stmt).all())
 
         if not rules:
             return []
@@ -104,7 +109,7 @@ def _evaluate_single_rule(
 
     # Triggered — create alert event
     message = _build_message(rule, value, effective_threshold)
-    event = create_alert_event({
+    event_data = {
         "rule_id": rule.id,
         "trace_id": trace.id,
         "agent_name": trace.agent_name,
@@ -112,7 +117,10 @@ def _evaluate_single_rule(
         "value": value,
         "threshold": effective_threshold,
         "message": message,
-    })
+    }
+    if trace.user_id:
+        event_data["user_id"] = trace.user_id
+    event = create_alert_event(event_data)
 
     # Publish SSE + webhook
     publish_alert_sse(rule, event)

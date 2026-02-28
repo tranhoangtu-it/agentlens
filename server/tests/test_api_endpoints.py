@@ -57,25 +57,26 @@ class TestHealthEndpoint:
 class TestIngestTraceEndpoint:
     """Test POST /api/traces."""
 
-    def test_ingest_trace_success(self, client):
+    def test_ingest_trace_success(self, client, auth_headers):
         """Post valid trace returns 201."""
         data = make_api_trace_data()
-        response = client.post("/api/traces", json=data)
+        response = client.post("/api/traces", json=data, headers=auth_headers)
         assert response.status_code == 201
         body = response.json()
         assert body["trace_id"] == data["trace_id"]
         assert body["status"] == "completed"
 
-    def test_ingest_trace_invalid_body(self, client):
+    def test_ingest_trace_invalid_body(self, client, auth_headers):
         """Invalid body returns 422."""
-        response = client.post("/api/traces", json={"invalid": "data"})
+        response = client.post("/api/traces", json={"invalid": "data"}, headers=auth_headers)
         assert response.status_code == 422
 
-    def test_ingest_trace_missing_required_fields(self, client):
+    def test_ingest_trace_missing_required_fields(self, client, auth_headers):
         """Missing required fields returns 422."""
         response = client.post(
             "/api/traces",
             json={"trace_id": "test", "agent_name": "agent"},
+            headers=auth_headers,
         )
         assert response.status_code == 422
 
@@ -83,14 +84,13 @@ class TestIngestTraceEndpoint:
 class TestListTracesEndpoint:
     """Test GET /api/traces."""
 
-    def test_list_traces_default(self, client):
+    def test_list_traces_default(self, client, auth_headers):
         """Get /api/traces returns paginated list."""
-        # Create a few traces
         for i in range(3):
             data = make_api_trace_data(agent_name=f"agent-{i}")
-            client.post("/api/traces", json=data)
+            client.post("/api/traces", json=data, headers=auth_headers)
 
-        response = client.get("/api/traces")
+        response = client.get("/api/traces", headers=auth_headers)
         assert response.status_code == 200
         body = response.json()
         assert "traces" in body
@@ -99,67 +99,66 @@ class TestListTracesEndpoint:
         assert body["limit"] == 50
         assert body["offset"] == 0
 
-    def test_list_traces_with_pagination(self, client):
+    def test_list_traces_with_pagination(self, client, auth_headers):
         """Pagination parameters work."""
         for i in range(15):
             data = make_api_trace_data()
-            client.post("/api/traces", json=data)
+            client.post("/api/traces", json=data, headers=auth_headers)
 
-        response = client.get("/api/traces?limit=5&offset=0")
+        response = client.get("/api/traces?limit=5&offset=0", headers=auth_headers)
         assert response.status_code == 200
         body = response.json()
         assert len(body["traces"]) <= 5
 
-    def test_list_traces_filter_agent_name(self, client):
+    def test_list_traces_filter_agent_name(self, client, auth_headers):
         """Filter by agent_name query param."""
         target_agent = f"search_agent_{uuid.uuid4()}"
         data1 = make_api_trace_data(agent_name=target_agent)
-        client.post("/api/traces", json=data1)
+        client.post("/api/traces", json=data1, headers=auth_headers)
 
         data2 = make_api_trace_data(agent_name="chat_agent")
-        client.post("/api/traces", json=data2)
+        client.post("/api/traces", json=data2, headers=auth_headers)
 
-        response = client.get(f"/api/traces?agent_name={target_agent}")
+        response = client.get(f"/api/traces?agent_name={target_agent}", headers=auth_headers)
         assert response.status_code == 200
         body = response.json()
         assert body["total"] == 1
         assert body["traces"][0]["agent_name"] == target_agent
 
-    def test_list_traces_filter_status(self, client):
+    def test_list_traces_filter_status(self, client, auth_headers):
         """Filter by status query param."""
         data = make_api_trace_data()
-        response = client.post("/api/traces", json=data)
+        response = client.post("/api/traces", json=data, headers=auth_headers)
         assert response.status_code == 201
 
-        response = client.get("/api/traces?status=completed")
+        response = client.get("/api/traces?status=completed", headers=auth_headers)
         assert response.status_code == 200
         body = response.json()
         assert body["total"] >= 1
 
-    def test_list_traces_filter_date_range(self, client):
+    def test_list_traces_filter_date_range(self, client, auth_headers):
         """Filter by date range query params."""
         data = make_api_trace_data()
-        response = client.post("/api/traces", json=data)
+        response = client.post("/api/traces", json=data, headers=auth_headers)
         assert response.status_code == 201
 
-        # Filter with valid ISO date
-        response = client.get("/api/traces?from_date=2020-01-01T00:00:00")
+        response = client.get("/api/traces?from_date=2020-01-01T00:00:00", headers=auth_headers)
         assert response.status_code == 200
         body = response.json()
         assert body["total"] >= 1
 
-    def test_list_traces_invalid_date_format(self, client):
+    def test_list_traces_invalid_date_format(self, client, auth_headers):
         """Invalid date format returns 422."""
-        response = client.get("/api/traces?from_date=invalid-date")
+        response = client.get("/api/traces?from_date=invalid-date", headers=auth_headers)
         assert response.status_code == 422
 
-    def test_list_traces_filter_cost_range(self, client):
+    def test_list_traces_filter_cost_range(self, client, auth_headers):
         """Filter by cost range query params."""
         data = make_api_trace_data()
-        response = client.post("/api/traces", json=data)
+        response = client.post("/api/traces", json=data, headers=auth_headers)
         assert response.status_code == 201
 
-        response = client.get("/api/traces?min_cost=0.0001&max_cost=0.01")
+        response = client.get("/api/traces?min_cost=0.0001&max_cost=0.01", headers=auth_headers)
         assert response.status_code == 200
         body = response.json()
         assert body["total"] >= 1
@@ -168,21 +167,21 @@ class TestListTracesEndpoint:
 class TestGetTraceEndpoint:
     """Test GET /api/traces/{trace_id}."""
 
-    def test_get_trace_success(self, client):
+    def test_get_trace_success(self, client, auth_headers):
         """Get existing trace returns 200 with trace and spans."""
         data = make_api_trace_data()
-        client.post("/api/traces", json=data)
+        client.post("/api/traces", json=data, headers=auth_headers)
 
-        response = client.get(f"/api/traces/{data['trace_id']}")
+        response = client.get(f"/api/traces/{data['trace_id']}", headers=auth_headers)
         assert response.status_code == 200
         body = response.json()
         assert body["trace"]["id"] == data["trace_id"]
         assert body["trace"]["agent_name"] == data["agent_name"]
         assert len(body["spans"]) == 2
 
-    def test_get_trace_not_found(self, client):
+    def test_get_trace_not_found(self, client, auth_headers):
         """Non-existent trace returns 404."""
-        response = client.get(f"/api/traces/nonexistent-{uuid.uuid4()}")
+        response = client.get(f"/api/traces/nonexistent-{uuid.uuid4()}", headers=auth_headers)
         assert response.status_code == 404
         body = response.json()
         assert "detail" in body
@@ -191,13 +190,11 @@ class TestGetTraceEndpoint:
 class TestIngestSpansEndpoint:
     """Test POST /api/traces/{trace_id}/spans."""
 
-    def test_ingest_spans_success(self, client):
+    def test_ingest_spans_success(self, client, auth_headers):
         """Post spans to existing trace returns 201."""
-        # Create initial trace
         data = make_api_trace_data()
-        client.post("/api/traces", json=data)
+        client.post("/api/traces", json=data, headers=auth_headers)
 
-        # Add more spans
         uid = str(uuid.uuid4())
         parent_id = data["spans"][0]["span_id"]
         new_spans = {
@@ -219,13 +216,14 @@ class TestIngestSpansEndpoint:
         response = client.post(
             f"/api/traces/{data['trace_id']}/spans",
             json=new_spans,
+            headers=auth_headers,
         )
         assert response.status_code == 201
         body = response.json()
         assert body["trace_id"] == data["trace_id"]
         assert body["new_span_count"] == 1
 
-    def test_ingest_spans_trace_not_found(self, client):
+    def test_ingest_spans_trace_not_found(self, client, auth_headers):
         """Adding spans to non-existent trace returns 404."""
         new_spans = {
             "spans": [
@@ -246,16 +244,15 @@ class TestIngestSpansEndpoint:
         response = client.post(
             f"/api/traces/nonexistent-{uuid.uuid4()}/spans",
             json=new_spans,
+            headers=auth_headers,
         )
         assert response.status_code == 404
 
-    def test_ingest_spans_too_many(self, client):
+    def test_ingest_spans_too_many(self, client, auth_headers):
         """Posting more than 100 spans returns 422."""
-        # Create initial trace
         data = make_api_trace_data()
-        client.post("/api/traces", json=data)
+        client.post("/api/traces", json=data, headers=auth_headers)
 
-        # Try to add 101 spans
         many_spans = {
             "spans": [
                 {
@@ -276,6 +273,7 @@ class TestIngestSpansEndpoint:
         response = client.post(
             f"/api/traces/{data['trace_id']}/spans",
             json=many_spans,
+            headers=auth_headers,
         )
         assert response.status_code == 422
 
@@ -283,14 +281,13 @@ class TestIngestSpansEndpoint:
 class TestListAgentsEndpoint:
     """Test GET /api/agents."""
 
-    def test_list_agents_success(self, client):
+    def test_list_agents_success(self, client, auth_headers):
         """Get /api/agents returns distinct agent names."""
-        # Create traces with different agents
         for agent in ["search_agent", "chat_agent", "search_agent"]:
             data = make_api_trace_data(agent_name=agent)
-            client.post("/api/traces", json=data)
+            client.post("/api/traces", json=data, headers=auth_headers)
 
-        response = client.get("/api/agents")
+        response = client.get("/api/agents", headers=auth_headers)
         assert response.status_code == 200
         body = response.json()
         assert "agents" in body

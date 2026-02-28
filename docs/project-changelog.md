@@ -2,6 +2,76 @@
 
 All notable changes documented. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.5.0] — 2026-02-28
+
+**Version:** 0.5.0 | **Status:** Production | **Release Type:** Major Feature Release
+
+### Added
+
+#### Multi-Tenant Authentication
+- **User Registration** — `POST /api/auth/register` (email, password, display_name)
+- **JWT Login** — `POST /api/auth/login` (HS256, 24h expiry, Bearer token)
+- **API Key Auth** — Create/list/delete API keys (`al_` prefix, SHA-256 hashed)
+- **Per-User Isolation** — Traces, alert rules, alert events scoped by user_id
+- **Dashboard Auth UI** — Login page, AuthProvider context, protected routes
+- **SSE Per-User Filtering** — Events only sent to owning user
+- **Orphan Data Migration** — Existing data auto-assigned to admin user on startup
+- **Cross-Tenant Protection** — 404 (not 403) for other users' resources
+
+#### Alerting Framework
+- **Alert Rules CRUD** — `POST/GET/PUT/DELETE /api/alert-rules`
+- **Metrics:** cost, latency, error_rate with gt/lt/gte/lte operators
+- **Evaluation on Ingestion** — Rules checked automatically when traces arrive
+- **Alert Events** — `GET /api/alerts`, `PATCH /api/alerts/{id}/resolve`, `GET /api/alerts/summary`
+- **Wildcard Rules** — `agent_name="*"` matches any agent
+- **Dashboard Pages** — Alert rules list, alert events list
+
+#### Server Auth Files
+- `auth_models.py` — User + ApiKey SQLModel tables
+- `auth_storage.py` — CRUD with bcrypt + SHA-256
+- `auth_jwt.py` — JWT encode/decode (PyJWT)
+- `auth_deps.py` — FastAPI dependency for get_current_user
+- `auth_routes.py` — Auth API endpoints
+- `auth_seed.py` — Admin seeder + orphan data migration
+
+#### Testing
+- **86 server tests** (up from 46)
+- **27 new auth/isolation tests** — register, login, me, API keys, tenant isolation
+- **86% code coverage**
+
+### Changed
+- All data endpoints now require authentication (Bearer token or X-API-Key)
+- Health endpoint (`GET /api/health`) remains public
+- SSE bus rewritten with per-user subscriber filtering
+- `user_id` column added to Trace, AlertRule, AlertEvent tables
+
+### Security
+- bcrypt password hashing (12 rounds)
+- SHA-256 API key hashing (raw key never stored)
+- JWT HS256 with configurable secret (AGENTLENS_JWT_SECRET env)
+- Cross-tenant access returns 404 to prevent enumeration
+- Default admin password warning on startup
+
+### Upgrade Instructions
+
+**From v0.4.0 to v0.5.0:**
+
+1. **Docker Image Update**
+   ```bash
+   docker pull tranhoangtu/agentlens:0.5.0
+   docker run -p 3000:3000 -e AGENTLENS_JWT_SECRET=your-secret tranhoangtu/agentlens:0.5.0
+   ```
+
+2. **First Run** — Admin user auto-created (admin@agentlens.local / changeme)
+3. **Change Admin Password** — Login and update immediately
+4. **SDK Update** — Add API key header:
+   ```python
+   agentlens.configure(server_url="http://localhost:3000", api_key="al_...")
+   ```
+5. **Breaking Change** — All data endpoints now require auth. SDK clients must provide API key.
+
+---
+
 ## [0.4.0] — 2026-02-28
 
 **Version:** 0.4.0 | **Status:** Production | **Release Type:** Major Feature Release

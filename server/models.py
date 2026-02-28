@@ -13,6 +13,7 @@ from sqlmodel import SQLModel, Field
 class Trace(SQLModel, table=True):
     id: str = Field(primary_key=True)
     agent_name: str = Field(index=True)
+    user_id: Optional[str] = Field(default=None, index=True)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc), index=True,
     )
@@ -26,6 +27,7 @@ class Trace(SQLModel, table=True):
         Index("ix_trace_status_created", "status", "created_at"),
         Index("ix_trace_agent_created", "agent_name", "created_at"),
         Index("ix_trace_cost", "total_cost_usd"),
+        Index("ix_trace_user_created", "user_id", "created_at"),
     )
 
 

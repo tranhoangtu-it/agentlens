@@ -1,4 +1,4 @@
-"""Fixtures for server tests: test DB, API client."""
+"""Fixtures for server tests: test DB, API client, auth helpers."""
 
 import os
 import tempfile
@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from main import app
 import storage
 from models import Trace, Span
+from auth_models import User, ApiKey  # noqa: F401 — register auth tables
 
 
 @pytest.fixture(autouse=True)
@@ -57,6 +58,32 @@ def test_db(tmp_path):
 def client(test_db):
     """FastAPI test client."""
     return TestClient(app)
+
+
+@pytest.fixture
+def auth_headers(client):
+    """Register a test user and return auth headers dict."""
+    res = client.post("/api/auth/register", json={
+        "email": "test@example.com",
+        "password": "testpass123",
+        "display_name": "Test User",
+    })
+    assert res.status_code == 201
+    data = res.json()
+    return {"Authorization": f"Bearer {data['token']}"}
+
+
+@pytest.fixture
+def second_auth_headers(client):
+    """Register a second user for cross-tenant tests."""
+    res = client.post("/api/auth/register", json={
+        "email": "other@example.com",
+        "password": "otherpass123",
+        "display_name": "Other User",
+    })
+    assert res.status_code == 201
+    data = res.json()
+    return {"Authorization": f"Bearer {data['token']}"}
 
 
 @pytest.fixture

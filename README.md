@@ -32,6 +32,7 @@
 - **OpenTelemetry ingestion** — receive OTLP HTTP JSON spans from any OTel-instrumented app
 - **Batch transport** — configurable queue with auto-flush for high-throughput agents
 - **Self-hosted** — `docker run` and done. Your data never leaves your machine.
+- **Multi-tenant auth** — user registration, JWT sessions, API key auth, per-user data isolation
 - **90+ tests** — server + SDK with >82% coverage
 
 ## Quickstart
@@ -245,7 +246,7 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/agentlens .venv/bin/uvicorn m
 - [x] ~~PostgreSQL backend~~
 - [x] ~~TypeScript SDK~~
 - [x] ~~Alerting on agent behavior anomalies~~
-- [ ] Multi-tenant auth
+- [x] ~~Multi-tenant auth~~
 
 ## License
 

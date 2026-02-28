@@ -2,8 +2,10 @@
 
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
+from auth_deps import get_current_user
+from auth_models import User
 from alert_models import AlertRuleIn, AlertRuleUpdate
 from alert_storage import (
     create_alert_rule,
@@ -37,8 +39,9 @@ def _validate_rule(data: dict) -> None:
 
 
 @router.post("/alert-rules", status_code=201)
-def create_rule(body: AlertRuleIn):
+def create_rule(body: AlertRuleIn, user: User = Depends(get_current_user)):
     data = body.model_dump()
+    data["user_id"] = user.id
     _validate_rule(data)
     rule = create_alert_rule(data)
     return rule
@@ -49,24 +52,25 @@ def list_rules(
     agent_name: Optional[str] = Query(None),
     metric: Optional[str] = Query(None),
     enabled: Optional[bool] = Query(None),
+    user: User = Depends(get_current_user),
 ):
-    rules = list_alert_rules(agent_name=agent_name, metric=metric, enabled=enabled)
+    rules = list_alert_rules(agent_name=agent_name, metric=metric, enabled=enabled, user_id=user.id)
     return {"rules": rules}
 
 
 @router.put("/alert-rules/{rule_id}")
-def update_rule(rule_id: str, body: AlertRuleUpdate):
+def update_rule(rule_id: str, body: AlertRuleUpdate, user: User = Depends(get_current_user)):
     data = body.model_dump(exclude_unset=True)
     _validate_rule(data)
-    rule = update_alert_rule(rule_id, data)
+    rule = update_alert_rule(rule_id, data, user_id=user.id)
     if not rule:
         raise HTTPException(404, "Alert rule not found")
     return rule
 
 
 @router.delete("/alert-rules/{rule_id}", status_code=204)
-def delete_rule(rule_id: str):
-    if not delete_alert_rule(rule_id):
+def delete_rule(rule_id: str, user: User = Depends(get_current_user)):
+    if not delete_alert_rule(rule_id, user_id=user.id):
         raise HTTPException(404, "Alert rule not found")
 
 
@@ -79,22 +83,23 @@ def list_alerts(
     resolved: Optional[bool] = Query(None),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    user: User = Depends(get_current_user),
 ):
     events, total = list_alert_events(
-        agent_name=agent_name, resolved=resolved, limit=limit, offset=offset,
+        agent_name=agent_name, resolved=resolved, limit=limit, offset=offset, user_id=user.id,
     )
     return {"alerts": events, "total": total, "limit": limit, "offset": offset}
 
 
 @router.patch("/alerts/{alert_id}/resolve")
-def resolve_alert(alert_id: str):
-    event = resolve_alert_event(alert_id)
+def resolve_alert(alert_id: str, user: User = Depends(get_current_user)):
+    event = resolve_alert_event(alert_id, user_id=user.id)
     if not event:
         raise HTTPException(404, "Alert event not found")
     return event
 
 
 @router.get("/alerts/summary")
-def alerts_summary():
-    count = get_unresolved_alert_count()
+def alerts_summary(user: User = Depends(get_current_user)):
+    count = get_unresolved_alert_count(user_id=user.id)
     return {"unresolved_count": count}

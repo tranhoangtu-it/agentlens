@@ -1,15 +1,18 @@
-// App root — hash-based routing: #/ = list, #/traces/:id = detail, #/traces/:id/replay = replay, #/compare/:left/:right = compare
-// Sidebar navigation layout with logo + nav items
+// App root — hash-based routing with auth guard
+// Sidebar navigation layout with logo + nav items + user menu
 
 import { useState, useEffect, lazy, Suspense } from 'react'
 import { TracesListPage } from './pages/traces-list-page'
 import { TraceDetailPage } from './pages/trace-detail-page'
 import { TraceReplayPage } from './pages/trace-replay-page'
+import { LoginPage } from './pages/login-page'
+import { ApiKeysPage } from './pages/api-keys-page'
 import { cn } from './lib/utils'
-import { Activity, Bell, Settings, Cpu } from 'lucide-react'
+import { Activity, Bell, Settings, Cpu, Key, LogOut } from 'lucide-react'
 import { AlertsListPage } from './pages/alerts-list-page'
 import { AlertRulesPage } from './pages/alert-rules-page'
 import { fetchAlertsSummary } from './lib/alert-api-client'
+import { AuthProvider, useAuth } from './lib/auth-context'
 
 // Lazy load compare page — rarely used, large dependency (diff utils)
 const TraceComparePage = lazy(() =>
@@ -23,11 +26,15 @@ type Route =
   | { name: 'compare'; leftId: string; rightId: string }
   | { name: 'alerts' }
   | { name: 'alert-rules' }
+  | { name: 'api-keys' }
+  | { name: 'login' }
 
 function parseHash(hash: string): Route {
   const path = hash.replace(/^#\/?/, '')
+  if (path === 'login') return { name: 'login' }
   if (path === 'alerts') return { name: 'alerts' }
   if (path === 'alert-rules') return { name: 'alert-rules' }
+  if (path === 'api-keys') return { name: 'api-keys' }
   const compareMatch = path.match(/^compare\/([^/]+)\/(.+)$/)
   if (compareMatch) return { name: 'compare', leftId: compareMatch[1], rightId: compareMatch[2] }
   const replayMatch = path.match(/^traces\/([^/]+)\/replay$/)
@@ -69,7 +76,8 @@ function NavItem({
   )
 }
 
-export default function App() {
+function AuthenticatedApp() {
+  const { user, logout } = useAuth()
   const [route, setRoute] = useState<Route>(() => parseHash(window.location.hash))
   const [unresolvedCount, setUnresolvedCount] = useState(0)
 
@@ -152,11 +160,27 @@ export default function App() {
             active={route.name === 'alert-rules'}
             onClick={() => setHash('alert-rules')}
           />
+          <NavItem
+            icon={Key}
+            label="API Keys"
+            active={route.name === 'api-keys'}
+            onClick={() => setHash('api-keys')}
+          />
         </nav>
 
-        {/* Footer */}
-        <div className="px-4 py-3 border-t border-sidebar-border">
-          <p className="text-xs text-muted-foreground/60">v0.2</p>
+        {/* User menu footer */}
+        <div className="px-3 py-3 border-t border-sidebar-border space-y-2">
+          <div className="px-1">
+            <p className="text-xs text-foreground truncate">{user?.email}</p>
+            <p className="text-xs text-muted-foreground/60">{user?.is_admin ? 'Admin' : 'User'}</p>
+          </div>
+          <button
+            onClick={logout}
+            className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-xs text-muted-foreground hover:bg-sidebar-accent/60 hover:text-foreground transition-colors"
+          >
+            <LogOut size={12} />
+            Sign out
+          </button>
         </div>
       </aside>
 
@@ -212,6 +236,9 @@ export default function App() {
           {route.name === 'alert-rules' && (
             <span className="text-foreground font-medium">Alert Rules</span>
           )}
+          {route.name === 'api-keys' && (
+            <span className="text-foreground font-medium">API Keys</span>
+          )}
         </header>
 
         {/* Page content */}
@@ -240,8 +267,37 @@ export default function App() {
           {route.name === 'alert-rules' && (
             <AlertRulesPage />
           )}
+          {route.name === 'api-keys' && (
+            <ApiKeysPage />
+          )}
         </main>
       </div>
     </div>
   )
+}
+
+export default function App() {
+  return (
+    <AuthProvider>
+      <AppRouter />
+    </AuthProvider>
+  )
+}
+
+function AppRouter() {
+  const { user, loading } = useAuth()
+
+  if (loading) {
+    return (
+      <div className="h-screen bg-background flex items-center justify-center text-muted-foreground text-sm">
+        Loading...
+      </div>
+    )
+  }
+
+  if (!user) {
+    return <LoginPage />
+  }
+
+  return <AuthenticatedApp />
 }

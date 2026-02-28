@@ -1,6 +1,6 @@
 # AgentLens Development Roadmap
 
-**Current Version:** v0.4.0 | **Release Date:** Feb 2026 | **Next Milestone:** v0.5.0 (PostgreSQL backend)
+**Current Version:** v0.5.0 | **Release Date:** Feb 2026 | **Next Milestone:** v0.6.0 (PostgreSQL backend)
 
 ## Phase 1: MVP (COMPLETED ✅)
 
@@ -132,31 +132,37 @@
   - Reduces debugging time 50%
   - Differentiator from competitors
 
-#### 4. Multi-Tenant Auth
+#### 4. Multi-Tenant Auth ✅
 - **Rationale:** Multi-user self-hosted deployments
 - **Work:**
-  - [ ] User authentication (OAuth2 or SAML)
-  - [ ] Organization/team isolation
-  - [ ] Role-based access control (RBAC)
-  - [ ] API key management
+  - [x] User registration + JWT login (HS256, 24h expiry)
+  - [x] API key auth (SHA-256 hashed, `al_` prefix, X-API-Key header)
+  - [x] Per-user data isolation (traces, alert rules, alert events)
+  - [x] API key management (create/list/delete)
+  - [x] Dashboard auth UI (login page, auth context, protected routes)
+  - [x] SSE per-user event filtering
+  - [x] Orphan data migration (auto-assign to admin)
+  - [x] 27 tests (auth + tenant isolation)
 
 - **Impact:**
   - Enterprise deployment support
   - Shared AgentLens instances across teams
-  - Audit trail & compliance
+  - Secure per-user data isolation
 
-#### 5. Alerting Framework
+#### 5. Alerting Framework ✅
 - **Rationale:** Proactive agent monitoring
 - **Work:**
-  - [ ] Alert rule builder (UI)
-  - [ ] Triggers: high error rate, slow traces, cost threshold
-  - [ ] Channels: email, Slack, PagerDuty, webhooks
-  - [ ] Alert history & management
+  - [x] Alert rule CRUD API (POST/GET/PUT/DELETE /api/alert-rules)
+  - [x] Evaluation on trace ingestion (cost, latency, error_rate metrics)
+  - [x] Alert events API (list, resolve, summary)
+  - [x] Wildcard rules (agent_name="*")
+  - [x] Dashboard alert pages (rule list, event list)
+  - [x] 14 alert tests
 
 - **Impact:**
   - Operational insights
-  - Incident response automation
   - Cost governance
+  - Proactive anomaly detection
 
 #### 6. TypeScript SDK ✅
 - **Rationale:** Support Node.js and browser-based agents
@@ -177,8 +183,8 @@
 - [ ] PostgreSQL backend proven on 1M+ spans
 - [x] OTel ingestion (OTLP HTTP JSON, 8 tests passing)
 - [x] Time-travel replay usable (UI complete)
-- [ ] Multi-tenant auth production-ready
-- [ ] Alerting framework handling 1000+ rules
+- [x] Multi-tenant auth production-ready (JWT + API key, 27 tests)
+- [x] Alerting framework (cost/latency/error_rate, 14 tests)
 - [x] TypeScript SDK v0.1.0 published to npm
 
 ## Phase 4: Community & Growth (H2 2025)

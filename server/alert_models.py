@@ -17,6 +17,7 @@ class AlertRule(SQLModel, table=True):
 
     id: str = Field(primary_key=True)
     name: str
+    user_id: Optional[str] = Field(default=None, index=True)
     agent_name: str = Field(index=True)  # "*" = all agents
     metric: str  # "cost", "error_rate", "latency", "missing_span"
     operator: str = Field(default="gt")  # "gt", "lt", "gte", "lte"
@@ -44,6 +45,7 @@ class AlertEvent(SQLModel, table=True):
     id: str = Field(primary_key=True)
     rule_id: str = Field(index=True)
     trace_id: str = Field(index=True)
+    user_id: Optional[str] = Field(default=None, index=True)
     agent_name: str = Field(index=True)
     metric: str
     value: float

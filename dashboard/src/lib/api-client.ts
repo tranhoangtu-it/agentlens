@@ -1,5 +1,7 @@
 // API client for AgentLens backend — typed fetch wrappers for traces/spans
 
+import { fetchWithAuth } from './fetch-with-auth'
+
 export interface Trace {
   id: string
   agent_name: string
@@ -69,7 +71,7 @@ export async function fetchTraces(filters: TraceFilters = {}): Promise<TracesRes
   }
   const qs = params.toString()
   const url = qs ? `${BASE}/traces?${qs}` : `${BASE}/traces`
-  const res = await fetch(url)
+  const res = await fetchWithAuth(url)
   if (!res.ok) throw new Error(`fetchTraces failed: ${res.status}`)
   return res.json() as Promise<TracesResponse>
 }
@@ -81,7 +83,7 @@ export async function fetchAgents(): Promise<AgentsResponse> {
 }
 
 export async function fetchTrace(id: string): Promise<TraceDetailResponse> {
-  const res = await fetch(`${BASE}/traces/${encodeURIComponent(id)}`)
+  const res = await fetchWithAuth(`${BASE}/traces/${encodeURIComponent(id)}`)
   if (!res.ok) throw new Error(`fetchTrace failed: ${res.status}`)
   return res.json() as Promise<TraceDetailResponse>
 }
@@ -115,7 +117,7 @@ export async function fetchTraceComparison(
   rightId: string,
 ): Promise<TraceCompareResponse> {
   const params = new URLSearchParams({ left: leftId, right: rightId })
-  const res = await fetch(`${BASE}/traces/compare?${params}`)
+  const res = await fetchWithAuth(`${BASE}/traces/compare?${params}`)
   if (!res.ok) throw new Error(`fetchTraceComparison failed: ${res.status}`)
   return res.json() as Promise<TraceCompareResponse>
 }

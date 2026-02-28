@@ -9,6 +9,7 @@ from sqlalchemy import func, text
 from sqlmodel import Session, SQLModel, col, create_engine, select
 
 from models import Span, Trace
+from auth_models import ApiKey, User  # noqa: F401 — register tables for create_all()
 
 # PostgreSQL via DATABASE_URL; falls back to SQLite file path
 DB_PATH = os.environ.get("AGENTLENS_DB_PATH", "./agentlens.db")
@@ -36,7 +37,9 @@ def init_db():
             conn.commit()
 
 
-def create_trace(trace_id: str, agent_name: str, spans_data: list[dict]) -> Trace:
+def create_trace(
+    trace_id: str, agent_name: str, spans_data: list[dict], user_id: Optional[str] = None,
+) -> Trace:
     """Insert trace + spans, compute and store aggregates."""
     engine = _get_engine()
 
@@ -75,6 +78,7 @@ def create_trace(trace_id: str, agent_name: str, spans_data: list[dict]) -> Trac
     trace = Trace(
         id=trace_id,
         agent_name=agent_name,
+        user_id=user_id,
         total_cost_usd=total_cost,
         total_tokens=total_tokens,
         span_count=len(spans),
@@ -111,6 +115,7 @@ def list_traces(
     order: str = "desc",
     limit: int = 50,
     offset: int = 0,
+    user_id: Optional[str] = None,
 ) -> Tuple[list[Trace], int]:
     """Return paginated traces with optional filters. Returns (traces, total)."""
     # Allowed sort columns to prevent injection
@@ -124,6 +129,11 @@ def list_traces(
     with Session(engine) as session:
         stmt = select(Trace)
         count_stmt = select(func.count()).select_from(Trace)
+
+        # Tenant isolation
+        if user_id:
+            stmt = stmt.where(Trace.user_id == user_id)
+            count_stmt = count_stmt.where(Trace.user_id == user_id)
 
         # Build WHERE clauses
         if q:
@@ -163,32 +173,39 @@ def list_traces(
         return list(traces), total
 
 
-def list_agents() -> list[str]:
+def list_agents(user_id: Optional[str] = None) -> list[str]:
     """Return sorted list of distinct agent names."""
     engine = _get_engine()
     with Session(engine) as session:
-        rows = session.exec(select(Trace.agent_name).distinct()).all()
+        stmt = select(Trace.agent_name).distinct()
+        if user_id:
+            stmt = stmt.where(Trace.user_id == user_id)
+        rows = session.exec(stmt).all()
         return sorted(set(r for r in rows if r))
 
 
-def get_trace(trace_id: str) -> Optional[dict]:
-    """Return trace with its spans, or None if not found."""
+def get_trace(trace_id: str, user_id: Optional[str] = None) -> Optional[dict]:
+    """Return trace with its spans, or None if not found / not owned."""
     engine = _get_engine()
     with Session(engine) as session:
         trace = session.get(Trace, trace_id)
         if not trace:
             return None
+        if user_id and trace.user_id != user_id:
+            return None  # Cross-tenant: return 404 to prevent enumeration
         spans = session.exec(select(Span).where(Span.trace_id == trace_id)).all()
         return {"trace": trace, "spans": spans}
 
 
-def get_trace_pair(left_id: str, right_id: str) -> Optional[dict]:
-    """Fetch two traces + their spans for comparison. Returns None if either trace missing."""
+def get_trace_pair(left_id: str, right_id: str, user_id: Optional[str] = None) -> Optional[dict]:
+    """Fetch two traces + their spans for comparison. Returns None if either trace missing/not owned."""
     engine = _get_engine()
     with Session(engine) as session:
         left_trace = session.get(Trace, left_id)
         right_trace = session.get(Trace, right_id)
         if not left_trace or not right_trace:
+            return None
+        if user_id and (left_trace.user_id != user_id or right_trace.user_id != user_id):
             return None
         left_spans = list(session.exec(select(Span).where(Span.trace_id == left_id)).all())
         right_spans = list(session.exec(select(Span).where(Span.trace_id == right_id)).all())
@@ -198,7 +215,9 @@ def get_trace_pair(left_id: str, right_id: str) -> Optional[dict]:
         }
 
 
-def add_spans_to_trace(trace_id: str, spans_data: list[dict]) -> Optional[dict]:
+def add_spans_to_trace(
+    trace_id: str, spans_data: list[dict], user_id: Optional[str] = None,
+) -> Optional[dict]:
     """Append spans to existing trace, recompute aggregates. Returns {trace, new_spans} or None."""
     engine = _get_engine()
 
@@ -206,6 +225,8 @@ def add_spans_to_trace(trace_id: str, spans_data: list[dict]) -> Optional[dict]:
         trace = session.get(Trace, trace_id)
         if not trace:
             return None
+        if user_id and trace.user_id != user_id:
+            return None  # Cross-tenant: return None → 404
 
         new_spans = []
         for s in spans_data:

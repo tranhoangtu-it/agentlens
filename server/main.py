@@ -4,11 +4,13 @@ import os
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
+from auth_deps import get_current_user
+from auth_models import User
 from models import SpanIn, SpansIn, TraceIn
 from sse import bus
 from storage import add_spans_to_trace, create_trace, get_trace, get_trace_pair, init_db, list_agents, list_traces
@@ -16,11 +18,14 @@ from diff import compute_diff
 from otel_mapper import map_otlp_request
 from alert_routes import router as alert_router
 from alert_evaluator import evaluate_alert_rules
+from auth_routes import router as auth_router
+from auth_seed import seed_admin
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    seed_admin()
     yield
 
 
@@ -31,6 +36,7 @@ from fastapi.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
 app.include_router(alert_router)
+app.include_router(auth_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -52,14 +58,12 @@ def health():
 
 
 @app.post("/api/traces", status_code=201)
-def ingest_trace(body: TraceIn):
+def ingest_trace(body: TraceIn, user: User = Depends(get_current_user)):
     spans_data = [s.model_dump() for s in body.spans]
-    trace = create_trace(body.trace_id, body.agent_name, spans_data)
-    bus.publish("trace_created", {"trace_id": trace.id, "agent_name": trace.agent_name})
-    # Publish span_created for each span so live detail pages update
+    trace = create_trace(body.trace_id, body.agent_name, spans_data, user_id=user.id)
+    bus.publish("trace_created", {"trace_id": trace.id, "agent_name": trace.agent_name}, user_id=user.id)
     for s in body.spans:
-        bus.publish("span_created", {"trace_id": trace.id, "span": s.model_dump()})
-    # Evaluate alert rules if trace completed
+        bus.publish("span_created", {"trace_id": trace.id, "span": s.model_dump()}, user_id=user.id)
     if trace.status == "completed":
         evaluate_alert_rules(trace.id, trace.agent_name)
 
@@ -70,33 +74,30 @@ def ingest_trace(body: TraceIn):
 
 
 @app.post("/api/traces/{trace_id}/spans", status_code=201)
-def ingest_spans(trace_id: str, body: SpansIn):
+def ingest_spans(trace_id: str, body: SpansIn, user: User = Depends(get_current_user)):
     """Append spans to an existing trace and publish granular SSE events."""
     if len(body.spans) > 100:
         raise HTTPException(status_code=422, detail="Max 100 spans per request")
 
     spans_data = [s.model_dump() for s in body.spans]
-    result = add_spans_to_trace(trace_id, spans_data)
+    result = add_spans_to_trace(trace_id, spans_data, user_id=user.id)
     if result is None:
         raise HTTPException(status_code=404, detail="Trace not found")
 
     trace = result["trace"]
     new_spans = result["new_spans"]
 
-    # Publish per-span event
     for s in body.spans:
-        bus.publish("span_created", {"trace_id": trace_id, "span": s.model_dump()})
+        bus.publish("span_created", {"trace_id": trace_id, "span": s.model_dump()}, user_id=user.id)
 
-    # Publish aggregate update
     bus.publish("trace_updated", {
         "trace_id": trace.id,
         "status": trace.status,
         "span_count": trace.span_count,
         "total_cost_usd": trace.total_cost_usd,
         "duration_ms": trace.duration_ms,
-    })
+    }, user_id=user.id)
 
-    # Evaluate alert rules if trace completed
     if trace.status == "completed":
         evaluate_alert_rules(trace.id, trace.agent_name)
 
@@ -107,16 +108,16 @@ def ingest_spans(trace_id: str, body: SpansIn):
 
 
 @app.post("/api/otel/v1/traces", status_code=200)
-def ingest_otel_traces(body: dict):
+def ingest_otel_traces(body: dict, user: User = Depends(get_current_user)):
     """Receive OTLP HTTP JSON spans and store them as AgentLens traces."""
     groups = map_otlp_request(body)
     if not groups:
         return {"status": "ok", "traces_received": 0}
 
     for trace_id, agent_name, spans_data in groups:
-        existing = get_trace(trace_id)
+        existing = get_trace(trace_id, user_id=user.id)
         if existing:
-            result = add_spans_to_trace(trace_id, spans_data)
+            result = add_spans_to_trace(trace_id, spans_data, user_id=user.id)
             if result:
                 trace = result["trace"]
                 bus.publish("trace_updated", {
@@ -125,15 +126,14 @@ def ingest_otel_traces(body: dict):
                     "span_count": trace.span_count,
                     "total_cost_usd": trace.total_cost_usd,
                     "duration_ms": trace.duration_ms,
-                })
+                }, user_id=user.id)
         else:
-            trace = create_trace(trace_id, agent_name, spans_data)
-            bus.publish("trace_created", {"trace_id": trace.id, "agent_name": trace.agent_name})
+            trace = create_trace(trace_id, agent_name, spans_data, user_id=user.id)
+            bus.publish("trace_created", {"trace_id": trace.id, "agent_name": trace.agent_name}, user_id=user.id)
 
         for s in spans_data:
-            bus.publish("span_created", {"trace_id": trace_id, "span": s})
+            bus.publish("span_created", {"trace_id": trace_id, "span": s}, user_id=user.id)
 
-        # Evaluate alert rules if trace completed
         if trace.status == "completed":
             evaluate_alert_rules(trace.id, trace.agent_name)
 
@@ -156,8 +156,8 @@ def list_traces_endpoint(
     order: str = Query("desc"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
+    user: User = Depends(get_current_user),
 ):
-    # Validate date strings early to return 422 with clear message
     for date_str, param in [(from_date, "from_date"), (to_date, "to_date")]:
         if date_str is not None:
             try:
@@ -178,6 +178,7 @@ def list_traces_endpoint(
         order=order,
         limit=limit,
         offset=offset,
+        user_id=user.id,
     )
     return {"traces": traces, "total": total, "limit": limit, "offset": offset}
 
@@ -186,9 +187,9 @@ def list_traces_endpoint(
 
 
 @app.get("/api/agents")
-def list_agents_endpoint():
+def list_agents_endpoint(user: User = Depends(get_current_user)):
     """Return distinct agent names for filter dropdowns."""
-    return {"agents": list_agents()}
+    return {"agents": list_agents(user_id=user.id)}
 
 
 # ── Trace comparison — MUST be registered before /{trace_id} ─────────────────
@@ -198,9 +199,10 @@ def list_agents_endpoint():
 def compare_traces_endpoint(
     left: str = Query(..., description="Left trace ID"),
     right: str = Query(..., description="Right trace ID"),
+    user: User = Depends(get_current_user),
 ):
     """Return both traces + spans + structural diff metadata."""
-    pair = get_trace_pair(left, right)
+    pair = get_trace_pair(left, right, user_id=user.id)
     if not pair:
         raise HTTPException(status_code=404, detail="One or both traces not found")
 
@@ -235,9 +237,9 @@ def compare_traces_endpoint(
 
 
 @app.get("/api/traces/stream")
-async def stream_traces():
+async def stream_traces(user: User = Depends(get_current_user)):
     async def event_generator():
-        async for chunk in bus.subscribe():
+        async for chunk in bus.subscribe(user_id=user.id):
             yield chunk
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
@@ -247,8 +249,8 @@ async def stream_traces():
 
 
 @app.get("/api/traces/{trace_id}")
-def get_trace_endpoint(trace_id: str):
-    result = get_trace(trace_id)
+def get_trace_endpoint(trace_id: str, user: User = Depends(get_current_user)):
+    result = get_trace(trace_id, user_id=user.id)
     if not result:
         raise HTTPException(status_code=404, detail="Trace not found")
     return result

@@ -107,38 +107,38 @@ class TestOtelMapperUnit:
 
 
 class TestOtelEndpoint:
-    def test_ingest_otel_single_trace(self, client):
+    def test_ingest_otel_single_trace(self, client, auth_headers):
         """Valid OTLP body creates trace, returns traces_received=1."""
         body = _make_otlp_body(trace_id="otel-trace-1", span_id="otel-span-1")
-        resp = client.post("/api/otel/v1/traces", json=body)
+        resp = client.post("/api/otel/v1/traces", json=body, headers=auth_headers)
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "ok"
         assert data["traces_received"] == 1
 
         # Trace visible in listing
-        listing = client.get("/api/traces").json()
+        listing = client.get("/api/traces", headers=auth_headers).json()
         ids = [t["id"] for t in listing["traces"]]
         assert "otel-trace-1" in ids
 
-    def test_ingest_otel_empty_body(self, client):
+    def test_ingest_otel_empty_body(self, client, auth_headers):
         """Empty body is valid JSON, returns traces_received=0."""
-        resp = client.post("/api/otel/v1/traces", json={})
+        resp = client.post("/api/otel/v1/traces", json={}, headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json() == {"status": "ok", "traces_received": 0}
 
-    def test_ingest_otel_idempotent_second_call(self, client):
+    def test_ingest_otel_idempotent_second_call(self, client, auth_headers):
         """Same traceId sent twice: spans upserted, not duplicated."""
         body = _make_otlp_body(trace_id="otel-idem-1", span_id="otel-span-x")
 
-        client.post("/api/otel/v1/traces", json=body)
-        client.post("/api/otel/v1/traces", json=body)  # same spanId
+        client.post("/api/otel/v1/traces", json=body, headers=auth_headers)
+        client.post("/api/otel/v1/traces", json=body, headers=auth_headers)  # same spanId
 
-        detail = client.get("/api/traces/otel-idem-1").json()
+        detail = client.get("/api/traces/otel-idem-1", headers=auth_headers).json()
         # span_count must remain 1 (upsert guard in add_spans_to_trace)
         assert detail["trace"]["span_count"] == 1
 
-    def test_ingest_otel_multiple_resource_spans(self, client):
+    def test_ingest_otel_multiple_resource_spans(self, client, auth_headers):
         """Two resourceSpans → two distinct traces, traces_received=2."""
         body = {
             "resourceSpans": [
@@ -166,11 +166,11 @@ class TestOtelEndpoint:
                 },
             ]
         }
-        resp = client.post("/api/otel/v1/traces", json=body)
+        resp = client.post("/api/otel/v1/traces", json=body, headers=auth_headers)
         assert resp.status_code == 200
         assert resp.json()["traces_received"] == 2
 
-        listing = client.get("/api/traces").json()
+        listing = client.get("/api/traces", headers=auth_headers).json()
         ids = [t["id"] for t in listing["traces"]]
         assert "multi-trace-1" in ids
         assert "multi-trace-2" in ids
