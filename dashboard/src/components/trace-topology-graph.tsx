@@ -1,9 +1,11 @@
 // Trace topology graph — React Flow graph of spans with dagre hierarchical layout
+// Running spans (no end_ms) get a CSS pulse animation; edges from running spans are dashed
 
 import { useMemo, useCallback } from 'react'
 import {
   ReactFlow,
   Background,
+  BackgroundVariant,
   Controls,
   MiniMap,
   type Node,
@@ -28,23 +30,64 @@ const TYPE_COLORS: Record<string, string> = {
   handoff:   '#f97316',   // orange-500
 }
 
+// Legend entries for span types
+const TYPE_LABELS: { type: string; label: string; color: string }[] = [
+  { type: 'agent_run', label: 'Agent Run',  color: TYPE_COLORS.agent_run },
+  { type: 'tool_call', label: 'Tool Call',  color: TYPE_COLORS.tool_call },
+  { type: 'llm_call',  label: 'LLM Call',   color: TYPE_COLORS.llm_call },
+  { type: 'handoff',   label: 'Handoff',    color: TYPE_COLORS.handoff },
+]
+
 const NODE_W = 180
 const NODE_H = 52
 
-function getNodeStyle(type: string, selected: boolean) {
+// CSS keyframes injected once for the pulse ring animation
+const PULSE_STYLE = `
+@keyframes agentlens-pulse-ring {
+  0%   { box-shadow: 0 0 0 0px rgba(var(--pulse-color), 0.55); }
+  70%  { box-shadow: 0 0 0 7px rgba(var(--pulse-color), 0); }
+  100% { box-shadow: 0 0 0 0px rgba(var(--pulse-color), 0); }
+}
+.agentlens-node-running {
+  animation: agentlens-pulse-ring 1.6s ease-out infinite;
+}
+`
+
+// Inject style tag into document head (idempotent)
+function ensurePulseStyle() {
+  if (typeof document === 'undefined') return
+  if (document.getElementById('agentlens-pulse-style')) return
+  const el = document.createElement('style')
+  el.id = 'agentlens-pulse-style'
+  el.textContent = PULSE_STYLE
+  document.head.appendChild(el)
+}
+
+function hexToRgb(hex: string): string {
+  const h = hex.replace('#', '')
+  const n = parseInt(h, 16)
+  return `${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}`
+}
+
+function getNodeStyle(type: string, selected: boolean, running: boolean): React.CSSProperties {
   const color = TYPE_COLORS[type] ?? '#6b7280'
+  const rgbColor = hexToRgb(color)
   return {
     background: selected ? color : `${color}22`,
-    border: `2px solid ${color}`,
+    border: `2px solid ${selected ? color : color + '99'}`,
     borderRadius: 8,
     color: '#f9fafb',
     fontSize: 12,
     padding: '6px 10px',
     width: NODE_W,
+    boxShadow: selected ? `0 0 0 3px ${color}44` : undefined,
+    ...(running ? { '--pulse-color': rgbColor } as React.CSSProperties : {}),
   }
 }
 
 function buildDagreLayout(spans: Span[]): { nodes: Node[]; edges: Edge[] } {
+  ensurePulseStyle()
+
   const g = new dagre.graphlib.Graph()
   g.setDefaultEdgeLabel(() => ({}))
   g.setGraph({ rankdir: 'TB', nodesep: 40, ranksep: 60 })
@@ -60,24 +103,37 @@ function buildDagreLayout(spans: Span[]): { nodes: Node[]; edges: Edge[] } {
 
   const nodes: Node[] = spans.map((s) => {
     const pos = g.node(s.id)
+    const running = s.end_ms == null
     const dur = s.end_ms ? s.end_ms - s.start_ms : null
     const label = dur != null ? `${s.name}\n${dur}ms` : `${s.name}\n⏳ running`
     return {
       id: s.id,
       position: { x: pos.x - NODE_W / 2, y: pos.y - NODE_H / 2 },
       data: { label, span: s },
-      style: getNodeStyle(s.type, false),
+      style: getNodeStyle(s.type, false, running),
+      className: running ? 'agentlens-node-running' : undefined,
     }
   })
 
+  // Running span edges are dashed to signal in-progress connections
+  const runningIds = new Set(spans.filter((s) => s.end_ms == null).map((s) => s.id))
+
   const edges: Edge[] = spans
     .filter((s) => s.parent_id)
-    .map((s) => ({
-      id: `e-${s.parent_id}-${s.id}`,
-      source: s.parent_id!,
-      target: s.id,
-      style: { stroke: '#4b5563' },
-    }))
+    .map((s) => {
+      const isDashed = runningIds.has(s.id) || (s.parent_id ? runningIds.has(s.parent_id) : false)
+      return {
+        id: `e-${s.parent_id}-${s.id}`,
+        source: s.parent_id!,
+        target: s.id,
+        style: {
+          stroke: isDashed ? '#6b7280' : '#374151',
+          strokeDasharray: isDashed ? '5 4' : undefined,
+          strokeWidth: isDashed ? 1.5 : 1,
+        },
+        animated: isDashed,
+      }
+    })
 
   return { nodes, edges }
 }
@@ -85,12 +141,17 @@ function buildDagreLayout(spans: Span[]): { nodes: Node[]; edges: Edge[] } {
 export function TraceTopologyGraph({ spans, selectedSpanId, onSelectSpan }: Props) {
   const { nodes, edges } = useMemo(() => buildDagreLayout(spans), [spans])
 
-  // Apply selected highlight
+  // Apply selected highlight on top of running state
   const styledNodes = useMemo(
     () =>
       nodes.map((n) => {
         const span = (n.data as { span: Span }).span
-        return { ...n, style: getNodeStyle(span.type, n.id === selectedSpanId) }
+        const running = span.end_ms == null
+        return {
+          ...n,
+          style: getNodeStyle(span.type, n.id === selectedSpanId, running),
+          className: running ? 'agentlens-node-running' : undefined,
+        }
       }),
     [nodes, selectedSpanId],
   )
@@ -105,14 +166,18 @@ export function TraceTopologyGraph({ spans, selectedSpanId, onSelectSpan }: Prop
 
   if (spans.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-gray-500">
+      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
         No spans found for this trace.
       </div>
     )
   }
 
+  // Collect which span types are actually present for the legend
+  const presentTypes = new Set(spans.map((s) => s.type))
+  const legendItems = TYPE_LABELS.filter((t) => presentTypes.has(t.type))
+
   return (
-    <div style={{ width: '100%', height: '100%' }}>
+    <div className="relative" style={{ width: '100%', height: '100%' }}>
       <ReactFlow
         nodes={styledNodes}
         edges={edges}
@@ -124,16 +189,40 @@ export function TraceTopologyGraph({ spans, selectedSpanId, onSelectSpan }: Prop
         elementsSelectable={false}
         colorMode="dark"
       >
-        <Background color="#374151" gap={24} />
+        {/* Subtle dot-grid background */}
+        <Background
+          variant={BackgroundVariant.Dots}
+          color="#1e293b"
+          gap={20}
+          size={1.5}
+        />
         <Controls />
         <MiniMap
           nodeColor={(n) => {
             const span = (n.data as { span: Span }).span
             return TYPE_COLORS[span.type] ?? '#6b7280'
           }}
-          maskColor="#111827cc"
+          maskColor="#0a0f1ecc"
+          style={{ background: '#0f172a', border: '1px solid #1e293b' }}
         />
       </ReactFlow>
+
+      {/* Type legend — bottom-left overlay */}
+      {legendItems.length > 0 && (
+        <div className="absolute bottom-3 left-3 z-10 flex items-center gap-3 px-3 py-1.5
+                        bg-background/80 backdrop-blur-sm border border-border rounded-md text-xs
+                        text-muted-foreground pointer-events-none">
+          {legendItems.map((t) => (
+            <span key={t.type} className="flex items-center gap-1.5">
+              <span
+                className="inline-block w-2.5 h-2.5 rounded-full shrink-0"
+                style={{ background: t.color }}
+              />
+              {t.label}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   )
 }

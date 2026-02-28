@@ -6,15 +6,41 @@ import time
 import uuid
 from contextvars import ContextVar
 from dataclasses import dataclass, field
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Protocol, runtime_checkable
 
-from .transport import post_trace
+from .transport import post_spans, post_trace
 
 logger = logging.getLogger("agentlens")
 
 _current_trace: ContextVar[Optional["ActiveTrace"]] = ContextVar(
     "_current_trace", default=None
 )
+
+
+@runtime_checkable
+class SpanExporter(Protocol):
+    """Protocol for optional span exporters (e.g. OpenTelemetry)."""
+
+    def export_span(self, span_data: "SpanData") -> None:
+        """Called after each span completes. Must not raise."""
+        ...
+
+    def shutdown(self) -> None:
+        """Called when the process is done. Flush any pending state."""
+        ...
+
+
+# Global list of registered exporters — populated via Tracer.add_exporter()
+_exporters: list[SpanExporter] = []
+
+
+def _emit_to_exporters(span: "SpanData") -> None:
+    """Forward a completed span to all registered exporters. Never raises."""
+    for exporter in _exporters:
+        try:
+            exporter.export_span(span)
+        except Exception as exc:
+            logger.debug("AgentLens exporter error (non-fatal): %s", exc)
 
 
 @dataclass
@@ -46,9 +72,10 @@ class SpanData:
 
 
 class ActiveTrace:
-    def __init__(self, trace_id: str, agent_name: str):
+    def __init__(self, trace_id: str, agent_name: str, streaming: bool = False):
         self.trace_id = trace_id
         self.agent_name = agent_name
+        self.streaming = streaming
         self.spans: list[SpanData] = []
         self._span_stack: list[str] = []  # stack of span_ids
 
@@ -63,7 +90,17 @@ class ActiveTrace:
         if self._span_stack:
             self._span_stack.pop()
 
+    def flush_span(self, span: SpanData) -> None:
+        """Send a single completed span immediately (streaming mode only)."""
+        _emit_to_exporters(span)
+        if self.streaming:
+            post_spans(self.trace_id, [span.to_dict()])
+
     def flush(self):
+        """Send the full trace batch. Always works regardless of streaming mode."""
+        # Export every span to registered exporters
+        for span in self.spans:
+            _emit_to_exporters(span)
         spans = [s.to_dict() for s in self.spans]
         post_trace(self.trace_id, self.agent_name, spans)
 
@@ -91,6 +128,18 @@ class SpanContext:
     def set_metadata(self, **kwargs):
         self._span.metadata.update(kwargs)
 
+    def log(self, message: str, **extra) -> None:
+        """Add a timestamped note to this span's metadata.
+
+        Args:
+            message: Human-readable note.
+            **extra: Additional key/value pairs merged into the log entry.
+        """
+        logs: list = self._span.metadata.setdefault("logs", [])
+        entry: dict = {"ts_ms": _now_ms(), "message": str(message)[:1024]}
+        entry.update({k: v for k, v in extra.items()})
+        logs.append(entry)
+
     def __enter__(self):
         self._active.push_span(self._span)
         return self
@@ -98,6 +147,8 @@ class SpanContext:
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._span.end_ms = _now_ms()
         self._active.pop_span()
+        # In streaming mode, push completed span to server immediately
+        self._active.flush_span(self._span)
         return False  # don't suppress exceptions
 
 
@@ -116,6 +167,7 @@ class _NoopSpanContext:
     def set_output(self, *a, **kw): pass
     def set_cost(self, *a, **kw): pass
     def set_metadata(self, **kw): pass
+    def log(self, message: str, **extra): pass
     def __enter__(self): return self
     def __exit__(self, *a): return False
 
@@ -125,9 +177,50 @@ class Tracer:
 
     def __init__(self):
         self._server_url: Optional[str] = None
+        self._streaming: bool = False
 
-    def configure(self, server_url: str):
+    def configure(
+        self,
+        server_url: str,
+        streaming: bool = False,
+        batch: bool = False,
+        batch_max_size: int = 10,
+        batch_flush_interval: float = 5.0,
+    ):
+        """Configure server URL and transport options.
+
+        Args:
+            server_url: Base URL of the AgentLens server.
+            streaming: When True, completed spans are sent immediately as they
+                       finish rather than waiting for the full trace to complete.
+                       Enables live topology updates in the dashboard.
+            batch: When True, traces are queued and flushed in batches instead
+                   of individual HTTP calls.  Reduces network overhead for
+                   high-throughput workloads.
+            batch_max_size: Flush batch when this many traces accumulate.
+            batch_flush_interval: Auto-flush batch every N seconds.
+        """
         self._server_url = server_url
+        self._streaming = streaming
+        if batch:
+            from .transport import configure_batch
+            configure_batch(
+                enabled=True,
+                server_url=server_url,
+                max_size=batch_max_size,
+                flush_interval=batch_flush_interval,
+            )
+
+    def add_exporter(self, exporter: SpanExporter) -> None:
+        """Register an optional span exporter (e.g. OTel).
+
+        Exporters receive every completed span in addition to the normal
+        AgentLens HTTP transport.  Multiple exporters can be registered.
+
+        Args:
+            exporter: Any object implementing the SpanExporter protocol.
+        """
+        _exporters.append(exporter)
 
     def trace(self, func: Optional[Callable] = None, *, name: Optional[str] = None,
               span_type: str = "agent_run"):
@@ -151,7 +244,7 @@ class Tracer:
         return decorator  # called as @trace(name="...")
 
     def _run_sync(self, fn, agent_name, span_type, args, kwargs):
-        active = ActiveTrace(str(uuid.uuid4()), agent_name)
+        active = ActiveTrace(str(uuid.uuid4()), agent_name, streaming=self._streaming)
         token = _current_trace.set(active)
         root = SpanData(
             span_id=str(uuid.uuid4()),
@@ -176,7 +269,7 @@ class Tracer:
             _current_trace.reset(token)
 
     async def _run_async(self, fn, agent_name, span_type, args, kwargs):
-        active = ActiveTrace(str(uuid.uuid4()), agent_name)
+        active = ActiveTrace(str(uuid.uuid4()), agent_name, streaming=self._streaming)
         token = _current_trace.set(active)
         root = SpanData(
             span_id=str(uuid.uuid4()),
@@ -213,6 +306,37 @@ class Tracer:
             start_ms=_now_ms(),
         )
         return SpanContext(active, s)
+
+    def log(self, message: str, **extra) -> None:
+        """Add a timestamped note to the current active span.
+
+        Convenience method that writes to the innermost span on the stack.
+        No-ops silently when called outside a trace.
+
+        Example::
+
+            with agentlens.span("retrieve") as s:
+                docs = retriever.invoke(query)
+                agentlens.log("retrieved docs", count=len(docs))
+
+        Args:
+            message: Human-readable note (truncated to 1024 chars).
+            **extra: Additional key/value metadata merged into the log entry.
+        """
+        active = _current_trace.get()
+        if active is None:
+            return
+        # Find the innermost span currently on the stack
+        span_id = active.current_span_id()
+        if span_id is None:
+            return
+        for span in reversed(active.spans):
+            if span.span_id == span_id:
+                logs: list = span.metadata.setdefault("logs", [])
+                entry: dict = {"ts_ms": _now_ms(), "message": str(message)[:1024]}
+                entry.update({k: v for k, v in extra.items()})
+                logs.append(entry)
+                return
 
     def current_trace(self) -> Optional[ActiveTrace]:
         return _current_trace.get()

@@ -2,10 +2,11 @@
 
 import json
 import os
-from typing import Optional
+from datetime import datetime, timezone
+from typing import Optional, Tuple
 
-from sqlalchemy import text
-from sqlmodel import Session, SQLModel, create_engine, select
+from sqlalchemy import func, text
+from sqlmodel import Session, SQLModel, col, create_engine, select
 
 from models import Span, Trace
 
@@ -92,15 +93,76 @@ def create_trace(trace_id: str, agent_name: str, spans_data: list[dict]) -> Trac
     return trace
 
 
-def list_traces(agent_name: Optional[str] = None, limit: int = 50, offset: int = 0) -> list[Trace]:
-    """Return paginated traces, newest first."""
+def list_traces(
+    q: Optional[str] = None,
+    status: Optional[str] = None,
+    agent_name: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+    min_cost: Optional[float] = None,
+    max_cost: Optional[float] = None,
+    sort: str = "created_at",
+    order: str = "desc",
+    limit: int = 50,
+    offset: int = 0,
+) -> Tuple[list[Trace], int]:
+    """Return paginated traces with optional filters. Returns (traces, total)."""
+    # Allowed sort columns to prevent injection
+    _SORT_COLS = {"created_at", "total_cost_usd", "duration_ms", "span_count", "agent_name", "status"}
+    if sort not in _SORT_COLS:
+        sort = "created_at"
+    if order not in ("asc", "desc"):
+        order = "desc"
+
     engine = _get_engine()
     with Session(engine) as session:
         stmt = select(Trace)
+        count_stmt = select(func.count()).select_from(Trace)
+
+        # Build WHERE clauses
+        if q:
+            pattern = f"%{q}%"
+            stmt = stmt.where(col(Trace.agent_name).like(pattern))
+            count_stmt = count_stmt.where(col(Trace.agent_name).like(pattern))
         if agent_name:
             stmt = stmt.where(Trace.agent_name == agent_name)
-        stmt = stmt.order_by(Trace.created_at.desc()).offset(offset).limit(limit)
-        return session.exec(stmt).all()
+            count_stmt = count_stmt.where(Trace.agent_name == agent_name)
+        if status:
+            stmt = stmt.where(Trace.status == status)
+            count_stmt = count_stmt.where(Trace.status == status)
+        if from_date:
+            dt = datetime.fromisoformat(from_date).replace(tzinfo=timezone.utc)
+            stmt = stmt.where(Trace.created_at >= dt)
+            count_stmt = count_stmt.where(Trace.created_at >= dt)
+        if to_date:
+            dt = datetime.fromisoformat(to_date).replace(tzinfo=timezone.utc)
+            stmt = stmt.where(Trace.created_at <= dt)
+            count_stmt = count_stmt.where(Trace.created_at <= dt)
+        if min_cost is not None:
+            stmt = stmt.where(Trace.total_cost_usd >= min_cost)
+            count_stmt = count_stmt.where(Trace.total_cost_usd >= min_cost)
+        if max_cost is not None:
+            stmt = stmt.where(Trace.total_cost_usd <= max_cost)
+            count_stmt = count_stmt.where(Trace.total_cost_usd <= max_cost)
+
+        # Sort
+        sort_col = getattr(Trace, sort)
+        if order == "desc":
+            stmt = stmt.order_by(sort_col.desc())
+        else:
+            stmt = stmt.order_by(sort_col.asc())
+
+        total = session.exec(count_stmt).one()
+        traces = session.exec(stmt.offset(offset).limit(limit)).all()
+        return list(traces), total
+
+
+def list_agents() -> list[str]:
+    """Return sorted list of distinct agent names."""
+    engine = _get_engine()
+    with Session(engine) as session:
+        rows = session.exec(select(Trace.agent_name).distinct()).all()
+        return sorted(set(r for r in rows if r))
 
 
 def get_trace(trace_id: str) -> Optional[dict]:
@@ -112,3 +174,67 @@ def get_trace(trace_id: str) -> Optional[dict]:
             return None
         spans = session.exec(select(Span).where(Span.trace_id == trace_id)).all()
         return {"trace": trace, "spans": spans}
+
+
+def add_spans_to_trace(trace_id: str, spans_data: list[dict]) -> Optional[dict]:
+    """Append spans to existing trace, recompute aggregates. Returns {trace, new_spans} or None."""
+    engine = _get_engine()
+
+    with Session(engine) as session:
+        trace = session.get(Trace, trace_id)
+        if not trace:
+            return None
+
+        new_spans = []
+        for s in spans_data:
+            cost = s.get("cost") or {}
+            meta = s.get("metadata")
+            span = Span(
+                id=s["span_id"],
+                trace_id=trace_id,
+                parent_id=s.get("parent_id"),
+                name=s["name"],
+                type=s["type"],
+                start_ms=s["start_ms"],
+                end_ms=s.get("end_ms"),
+                input=s.get("input"),
+                output=s.get("output"),
+                cost_model=cost.get("model"),
+                cost_input_tokens=cost.get("input_tokens"),
+                cost_output_tokens=cost.get("output_tokens"),
+                cost_usd=cost.get("usd"),
+                metadata_json=json.dumps(meta) if meta else None,
+            )
+            # Upsert: skip if span_id already exists
+            existing_span = session.get(Span, span.id)
+            if existing_span is None:
+                session.add(span)
+                new_spans.append(span)
+
+        # Recompute aggregates from all spans in trace
+        all_spans = session.exec(select(Span).where(Span.trace_id == trace_id)).all()
+        all_spans = list(all_spans) + new_spans
+
+        total_cost = sum(sp.cost_usd or 0.0 for sp in all_spans) or None
+        total_tokens = sum(
+            (sp.cost_input_tokens or 0) + (sp.cost_output_tokens or 0) for sp in all_spans
+        ) or None
+
+        start_times = [sp.start_ms for sp in all_spans if sp.start_ms]
+        end_times = [sp.end_ms for sp in all_spans if sp.end_ms]
+        duration_ms = (max(end_times) - min(start_times)) if start_times and end_times else None
+
+        # completed only when all spans have end_ms
+        status = "completed" if all_spans and all(sp.end_ms is not None for sp in all_spans) else "running"
+
+        trace.total_cost_usd = total_cost
+        trace.total_tokens = total_tokens
+        trace.span_count = len(all_spans)
+        trace.duration_ms = duration_ms
+        trace.status = status
+
+        session.add(trace)
+        session.commit()
+        session.refresh(trace)
+
+        return {"trace": trace, "new_spans": new_spans}

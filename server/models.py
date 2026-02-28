@@ -17,7 +17,7 @@ class Trace(SQLModel, table=True):
     total_tokens: Optional[int] = None
     span_count: int = 0
     duration_ms: Optional[int] = None
-    status: str = "running"
+    status: str = Field(default="running", index=True)
 
 
 class Span(SQLModel, table=True):
@@ -63,4 +63,9 @@ class SpanIn(BaseModel):
 class TraceIn(BaseModel):
     trace_id: str
     agent_name: str
+    spans: list[SpanIn]
+
+
+class SpansIn(BaseModel):
+    """Body for POST /api/traces/{trace_id}/spans — incremental span ingestion."""
     spans: list[SpanIn]

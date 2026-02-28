@@ -1,4 +1,5 @@
 // Cost summary bar chart — cost per span grouped by model using Recharts
+// Improved: card-style tooltip, gradient fills, total cost summary
 
 import {
   BarChart,
@@ -8,6 +9,7 @@ import {
   Tooltip,
   ResponsiveContainer,
   Cell,
+  CartesianGrid,
 } from 'recharts'
 import type { Span } from '../lib/api-client'
 
@@ -32,13 +34,39 @@ function aggregateByModel(spans: Span[]): ChartEntry[] {
     .sort((a, b) => b.cost - a.cost)
 }
 
-const BAR_COLORS = ['#3b82f6', '#a855f7', '#22c55e', '#f97316', '#ec4899']
+// Palette: [gradient-id-suffix, dark, light]
+const BAR_PALETTE: [string, string, string][] = [
+  ['blue',   '#3b82f6', '#60a5fa'],
+  ['purple', '#a855f7', '#c084fc'],
+  ['green',  '#22c55e', '#4ade80'],
+  ['orange', '#f97316', '#fb923c'],
+  ['pink',   '#ec4899', '#f472b6'],
+]
 
-function CustomTooltip({ active, payload }: { active?: boolean; payload?: { value: number }[] }) {
+// Inject SVG gradient defs rendered once inside the chart via customized prop
+function GradientDefs() {
+  return (
+    <defs>
+      {BAR_PALETTE.map(([id, dark, light]) => (
+        <linearGradient key={id} id={`bar-grad-${id}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={light} stopOpacity={0.9} />
+          <stop offset="100%" stopColor={dark} stopOpacity={0.75} />
+        </linearGradient>
+      ))}
+    </defs>
+  )
+}
+
+function CustomTooltip({ active, payload, label }: {
+  active?: boolean
+  payload?: { value: number }[]
+  label?: string
+}) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-gray-800 border border-gray-700 rounded px-3 py-2 text-xs text-gray-200">
-      ${payload[0].value.toFixed(6)}
+    <div className="bg-card border border-border rounded-md px-3 py-2 shadow-lg text-xs">
+      <p className="text-muted-foreground mb-1">{label}</p>
+      <p className="font-semibold text-foreground">${payload[0].value.toFixed(6)}</p>
     </div>
   )
 }
@@ -48,32 +76,48 @@ export function CostSummaryChart({ spans }: Props) {
 
   if (data.length === 0) {
     return (
-      <p className="text-xs text-gray-500 text-center py-4">No cost data available.</p>
+      <p className="text-xs text-muted-foreground text-center py-4">No cost data available.</p>
     )
   }
 
+  const total = data.reduce((s, d) => s + d.cost, 0)
+
   return (
-    <ResponsiveContainer width="100%" height={180}>
-      <BarChart data={data} margin={{ top: 8, right: 16, left: 0, bottom: 32 }}>
-        <XAxis
-          dataKey="name"
-          tick={{ fill: '#9ca3af', fontSize: 11 }}
-          angle={-25}
-          textAnchor="end"
-          interval={0}
-        />
-        <YAxis
-          tick={{ fill: '#9ca3af', fontSize: 11 }}
-          tickFormatter={(v: number) => `$${v.toFixed(4)}`}
-          width={64}
-        />
-        <Tooltip content={<CustomTooltip />} cursor={{ fill: '#ffffff10' }} />
-        <Bar dataKey="cost" radius={[3, 3, 0, 0]}>
-          {data.map((_entry, i) => (
-            <Cell key={i} fill={BAR_COLORS[i % BAR_COLORS.length]} />
-          ))}
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
+    <div>
+      {/* Total cost summary */}
+      <p className="text-xs text-muted-foreground mb-2">
+        Total: <span className="text-foreground font-medium">${total.toFixed(6)}</span>
+      </p>
+
+      <ResponsiveContainer width="100%" height={160}>
+        <BarChart data={data} margin={{ top: 4, right: 16, left: 0, bottom: 28 }}>
+          <GradientDefs />
+          <CartesianGrid vertical={false} stroke="#1e293b" strokeDasharray="3 3" />
+          <XAxis
+            dataKey="name"
+            tick={{ fill: '#64748b', fontSize: 10 }}
+            angle={-20}
+            textAnchor="end"
+            interval={0}
+            tickLine={false}
+            axisLine={false}
+          />
+          <YAxis
+            tick={{ fill: '#64748b', fontSize: 10 }}
+            tickFormatter={(v: number) => `$${v.toFixed(4)}`}
+            width={64}
+            tickLine={false}
+            axisLine={false}
+          />
+          <Tooltip content={<CustomTooltip />} cursor={{ fill: '#ffffff08' }} />
+          <Bar dataKey="cost" radius={[4, 4, 0, 0]}>
+            {data.map((_entry, i) => {
+              const [id] = BAR_PALETTE[i % BAR_PALETTE.length]
+              return <Cell key={i} fill={`url(#bar-grad-${id})`} />
+            })}
+          </Bar>
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
