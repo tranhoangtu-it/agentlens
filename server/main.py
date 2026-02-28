@@ -13,6 +13,7 @@ from models import SpanIn, SpansIn, TraceIn
 from sse import bus
 from storage import add_spans_to_trace, create_trace, get_trace, get_trace_pair, init_db, list_agents, list_traces
 from diff import compute_diff
+from otel_mapper import map_otlp_request
 
 
 @asynccontextmanager
@@ -88,6 +89,39 @@ def ingest_spans(trace_id: str, body: SpansIn):
     })
 
     return {"trace_id": trace.id, "status": trace.status, "new_span_count": len(new_spans)}
+
+
+# ── OTel OTLP HTTP ingestion ──────────────────────────────────────────────────
+
+
+@app.post("/api/otel/v1/traces", status_code=200)
+def ingest_otel_traces(body: dict):
+    """Receive OTLP HTTP JSON spans and store them as AgentLens traces."""
+    groups = map_otlp_request(body)
+    if not groups:
+        return {"status": "ok", "traces_received": 0}
+
+    for trace_id, agent_name, spans_data in groups:
+        existing = get_trace(trace_id)
+        if existing:
+            result = add_spans_to_trace(trace_id, spans_data)
+            if result:
+                trace = result["trace"]
+                bus.publish("trace_updated", {
+                    "trace_id": trace.id,
+                    "status": trace.status,
+                    "span_count": trace.span_count,
+                    "total_cost_usd": trace.total_cost_usd,
+                    "duration_ms": trace.duration_ms,
+                })
+        else:
+            trace = create_trace(trace_id, agent_name, spans_data)
+            bus.publish("trace_created", {"trace_id": trace.id, "agent_name": trace.agent_name})
+
+        for s in spans_data:
+            bus.publish("span_created", {"trace_id": trace_id, "span": s})
+
+    return {"status": "ok", "traces_received": len(groups)}
 
 
 # ── Trace listing ─────────────────────────────────────────────────────────────
