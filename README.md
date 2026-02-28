@@ -36,7 +36,7 @@
 docker run -p 3000:3000 agentlens/agentlens
 
 # 2. Install the SDK
-pip install agentlens
+pip install agentlens-observe
 ```
 
 ```python
