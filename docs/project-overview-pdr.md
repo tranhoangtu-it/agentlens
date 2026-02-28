@@ -1,6 +1,6 @@
-# AgentLens v0.4.0 — Product Overview & PDR
+# AgentLens v0.5.0 — Product Overview & PDR
 
-**Version:** 0.4.0 | **Release Date:** Feb 2026 | **Status:** Production
+**Version:** 0.5.0 | **Release Date:** Feb 2026 | **Status:** Production
 
 ## Executive Summary
 
@@ -11,6 +11,8 @@ AgentLens is a self-hosted, open-source AI agent observability platform. Unlike 
 - Visual topology graphs showing agent spawns, tool calls, handoffs
 - Trace comparison (side-by-side diff of two runs)
 - Cost tracking across 27 LLM models
+- Alerting on cost/latency/error_rate anomalies with webhook support
+- Multi-tenant authentication (JWT + API key, per-user data isolation)
 - Framework integrations (LangChain, CrewAI, AutoGen, LlamaIndex, Google ADK)
 - Self-hosted, data-private alternative to cloud observability platforms
 
@@ -18,7 +20,7 @@ AgentLens is a self-hosted, open-source AI agent observability platform. Unlike 
 
 - **PyPI (Python SDK):** `pip install agentlens-observe==0.3.0`
 - **npm (TypeScript SDK):** `npm install agentlens-observe@0.1.0`
-- **Docker:** `docker run -p 3000:3000 tranhoangtu/agentlens:0.4.0`
+- **Docker:** `docker run -p 3000:3000 tranhoangtu/agentlens:0.5.0`
 - **GitHub:** `github.com/tranhoangtu-it/agentlens`
 - **License:** MIT
 
@@ -64,11 +66,29 @@ AgentLens is a self-hosted, open-source AI agent observability platform. Unlike 
 - [x] Custom logging via `agentlens.log()` / `agentlens.log()`
 - [x] ESM + CJS dual output (TypeScript SDK)
 
-### F7: Testing & Quality
-- [x] 46 server tests (pytest, httpx, respx)
+### F8: Multi-Tenant Authentication
+- [x] User registration + JWT login (HS256, 24h, Bearer token)
+- [x] API key auth (SHA-256 hashed, `al_` prefix, X-API-Key header)
+- [x] Per-user data isolation (traces, alert rules, alert events scoped by user_id)
+- [x] Dashboard login page, AuthProvider context, protected routes
+- [x] SSE per-user event filtering
+- [x] Orphan data migration on startup (assign to admin)
+
+### F9: Alerting System
+- [x] Alert rules CRUD (`POST/GET/PUT/DELETE /api/alert-rules`)
+- [x] Metrics: cost, latency, error_rate with gt/lt/gte/lte operators
+- [x] Absolute + relative (rolling baseline) threshold modes
+- [x] 60s cooldown per rule to prevent alert storm
+- [x] Alert events (`GET /api/alerts`, `PATCH /api/alerts/{id}/resolve`, `GET /api/alerts/summary`)
+- [x] Wildcard rules (`agent_name="*"` matches any agent)
+- [x] SSE `alert_fired` events for real-time dashboard notifications
+- [x] Optional webhook POST delivery (fire-and-forget, 5s timeout)
+
+### F10: Testing & Quality
+- [x] 86 server tests (pytest, httpx, respx)
 - [x] Python SDK tests
 - [x] 30 TypeScript SDK tests (vitest)
-- [x] >82% code coverage
+- [x] 86% code coverage
 
 ## Non-Functional Requirements
 
@@ -87,9 +107,10 @@ AgentLens is a self-hosted, open-source AI agent observability platform. Unlike 
 - Future: PostgreSQL backend
 
 ### Security
-- CORS enabled (all origins for localhost dev)
-- HTTPS recommended for production
-- No user auth (v0.2.0) — assumes private network
+- JWT HS256, 24h token expiry; secret from AGENTLENS_JWT_SECRET env
+- bcrypt password hashing (12 rounds); SHA-256 API key hashing (raw never stored)
+- Cross-tenant access returns 404 (not 403) to prevent resource enumeration
+- CORS enabled (all origins for localhost dev); HTTPS recommended for production
 - OTel bridge for multi-backend export
 
 ### Reliability
@@ -122,7 +143,7 @@ Your Agent (Python)          AgentLens Server          Browser Dashboard
 | Testing | pytest, httpx, respx (server/Python SDK); vitest (TypeScript SDK) |
 | Deployment | Docker (multi-stage), PyPI, npm |
 
-## Key Features (v0.4.0)
+## Key Features (v0.5.0)
 
 1. **Live trace streaming** — Watch agent think in real-time
 2. **Agent topology graph** — Interactive DAG of tool calls, handoffs
@@ -134,7 +155,9 @@ Your Agent (Python)          AgentLens Server          Browser Dashboard
 8. **Batch transport** — High-throughput agent support (Python + TypeScript)
 9. **Time-travel replay** — Step through agent execution client-side
 10. **TypeScript SDK** — Node 18+, zero prod deps, ESM+CJS, `configure/trace/span/log/addExporter/currentTrace`
-11. **Self-hosted** — Your data, your machine
+11. **Multi-tenant auth** — JWT + API key, per-user isolation, login UI
+12. **Alerting** — cost/latency/error_rate rules, absolute + relative thresholds, SSE + webhook
+13. **Self-hosted** — Your data, your machine
 
 ## Success Metrics
 
@@ -148,9 +171,11 @@ Your Agent (Python)          AgentLens Server          Browser Dashboard
 - [x] Replay/time-travel debugging
 - [x] OTel span ingestion (receive spans from other systems)
 - [x] TypeScript SDK (v0.1.0 on npm)
+- [x] Alerting on behavior anomalies
+- [x] Multi-tenant auth (JWT + API key, per-user isolation)
 - [ ] PostgreSQL backend
-- [ ] Alerting on behavior anomalies
-- [ ] Multi-tenant auth
+- [ ] RBAC (role-based access, org-level scoping)
+- [ ] TypeScript SDK framework integrations (LangChain.js, LlamaIndex.js)
 
 ## Constraints & Dependencies
 
@@ -163,7 +188,8 @@ Your Agent (Python)          AgentLens Server          Browser Dashboard
 
 ## Success Criteria
 
-1. **Functional Completeness:** All F1-F7 requirements met ✅
+1. **Functional Completeness:** All F1-F10 requirements met ✅
 2. **Performance:** P50 trace listing <200ms, compare page <300ms ✅
-3. **Code Quality:** >82% coverage, zero critical bugs ✅
-4. **User Satisfaction:** Clear documentation, example projects ✅
+3. **Code Quality:** 86% coverage, zero critical bugs ✅
+4. **Security:** bcrypt + SHA-256 + JWT HS256 + cross-tenant 404 ✅
+5. **User Satisfaction:** Clear documentation, example projects ✅

@@ -1,6 +1,6 @@
-# AgentLens v0.2.0 — Codebase Summary
+# AgentLens v0.5.0 — Codebase Summary
 
-**Total Files:** 104 | **Total Tokens:** 410K | **Languages:** Python, TypeScript, JavaScript, HTML, CSS
+**Languages:** Python, TypeScript, JavaScript, HTML, CSS
 
 ## Quick Stats
 
@@ -10,9 +10,9 @@
 | **Recharts Bundle** | 335KB |
 | **React Flow Bundle** | 232KB |
 | **Compare Page Bundle** | 14KB (lazy) |
-| **Server Tests** | 38 tests |
-| **SDK Tests** | 52 tests |
-| **Coverage** | >82% |
+| **Server Tests** | 86 tests |
+| **SDK Tests** | 52 tests (Python) + 30 tests (TypeScript) |
+| **Coverage** | 86% |
 | **Python Version** | 3.10+ (SDK), 3.11+ (Server) |
 | **Node Version** | 18+ |
 
@@ -20,10 +20,15 @@
 
 ### Dashboard (`dashboard/src/`, ~3,500 LOC)
 
-#### Pages (3 files, ~800 LOC)
+#### Pages (7 files, ~1,400 LOC)
+- **`pages/login-page.tsx`** — Email/password login form. Calls auth-api-client. Stores JWT in localStorage via AuthProvider.
+- **`pages/api-keys-page.tsx`** — Create, list, delete API keys. Shows key prefix + last used. Full key shown only once on creation.
 - **`pages/traces-list-page.tsx`** — List all traces with search, filters, pagination. Uses trace-list-table component. Event listeners for trace_created updates.
 - **`pages/trace-detail-page.tsx`** — Single trace with topology graph + span detail panel. Real-time updates via useSSETraces. Pulse animation on running nodes.
 - **`pages/trace-compare-page.tsx`** — Side-by-side topology comparison. Lazy-loaded (14KB chunk). Diff algorithm from backend. Color-coded matching.
+- **`pages/trace-replay-page.tsx`** — Time-travel replay. Route `#/traces/:id/replay`. Uses use-replay-controls + replay-timeline-scrubber.
+- **`pages/alert-rules-page.tsx`** — CRUD UI for alert rules. metric/operator/threshold/mode/window_size/webhook_url fields.
+- **`pages/alerts-list-page.tsx`** — View fired alert events. Resolve button. Unresolved count badge from /api/alerts/summary.
 
 #### Components (11 files, ~2,000 LOC)
 - **`trace-list-table.tsx`** — Virtualized table (@tanstack/react-virtual). Sortable columns. Pagination controls. React.memo for performance.
@@ -37,12 +42,17 @@
 - **`pagination-controls.tsx`** — Page controls: limit selector (10, 25, 50, 100), prev/next buttons, current page indicator.
 - **UI Primitives** (9 files, ~600 LOC) — shadcn/ui base components: badge, button, card, input, skeleton, table, separator, tooltip, scroll-area.
 
-#### Hooks & Utilities (5 files, ~700 LOC)
-- **`use-sse-traces.ts`** — EventSource subscription. Listens to span_created + trace_updated. Updates local state.
+#### Hooks & Utilities (9 files, ~1,100 LOC)
+- **`use-sse-traces.ts`** — EventSource subscription. Listens to span_created + trace_updated + alert_fired. Per-user (auth token sent).
 - **`use-live-trace-detail.ts`** — Real-time trace fetching + SSE. Merges API response with stream updates.
 - **`use-trace-filters.ts`** — Filter state management (q, status, agent_name, date, cost, sort, order, limit, offset). Updates URL params.
-- **`api-client.ts`** — Typed fetch wrapper. Methods: listTraces(), getTrace(), compareTaces(), listAgents(). Error handling + retry logic.
+- **`use-replay-controls.ts`** — Replay cursor/timer/speed state machine (1-10x speed, step prev/next, play/pause).
+- **`api-client.ts`** — Typed fetch wrapper. Methods: listTraces(), getTrace(), compareTraces(), listAgents(). Error handling + retry logic.
 - **`diff-utils.ts`** — LCS matching, color assignment (green/red/blue). Span similarity scoring by name + type + duration.
+- **`fetch-with-auth.ts`** — Drop-in fetch wrapper that reads JWT from AuthContext and injects Authorization header.
+- **`auth-api-client.ts`** — Typed calls: login(), register(), getMe(), createApiKey(), listApiKeys(), deleteApiKey(). Uses fetch-with-auth.
+- **`auth-context.tsx`** — AuthProvider + useAuth hook. Stores JWT in localStorage. Wraps entire app. Redirects unauthenticated users to /login.
+- **`alert-api-client.ts`** — Typed calls: createRule(), listRules(), updateRule(), deleteRule(), listAlerts(), resolveAlert(), alertsSummary().
 
 #### Styling
 - **`index.css`** — Tailwind setup. CSS variables for dark theme (--slate-*, --blue-*, --red-*, --green-*). Pulse animation on `.animate-pulse`.
@@ -54,54 +64,52 @@
 - **`package.json`** — Dependencies: React 19, Vite 7, React Flow 12, Tailwind 3, Recharts 3, @tanstack/react-virtual, Radix UI, etc.
 - **`index.html`** — Root HTML. Mounts app to `#root`.
 
-### Server (`server/`, ~600 LOC)
+### Server (`server/`, ~1,400 LOC)
 
-#### Core Endpoints (1 file, ~200 LOC)
-- **`main.py`** — FastAPI app entry. Routes:
-  - `POST /api/traces` — Create trace
-  - `POST /api/traces/{id}/spans` — Incremental span ingestion
-  - `GET /api/traces` — List traces (q, status, agent, date, cost, sort, order, limit, offset)
-  - `GET /api/traces/{id}` — Fetch single trace
-  - `GET /api/traces/compare` — Compute diff
-  - `GET /api/agents` — List agent names
-  - `GET /api/health` — Liveness check
-  - Middleware: GZip (>1KB), CORS (all origins)
+#### Core Entry (1 file, ~200 LOC)
+- **`main.py`** — FastAPI app entry. Mounts auth_routes, alert_routes routers. All data routes use get_current_user dependency. Middleware: GZip (>1KB), CORS (all origins).
 
-#### Database Models (1 file, ~80 LOC)
-- **`models.py`** — SQLModel + Pydantic:
-  - `Trace` table: id, agent_name, created_at, status, span_count, total_cost_usd, total_tokens, duration_ms
-  - Compound indexes: (status, created_at), (agent_name, created_at), (total_cost_usd)
-  - `Span` table: id, trace_id, parent_id, name, type, start_ms, end_ms, input, output, cost_*, metadata_json
-  - Request schemas: `TraceIn`, `SpanIn`, `SpansIn`, `CostIn`
+#### Database Models (3 files, ~200 LOC)
+- **`models.py`** — Trace + Span SQLModel tables. Added `user_id` column to Trace. Request schemas: TraceIn, SpanIn, SpansIn, CostIn.
+- **`auth_models.py`** — User + ApiKey tables. Request schemas: RegisterIn, LoginIn.
+- **`alert_models.py`** — AlertRule + AlertEvent tables. Request schemas: AlertRuleIn, AlertRuleUpdate.
 
-#### Storage & CRUD (1 file, ~200 LOC)
-- **`storage.py`** — SQLite interface:
-  - `init_db()` — Create tables + indexes
-  - `create_trace()` — Insert trace + spans
-  - `add_spans_to_trace()` — Append spans to existing trace
-  - `get_trace()` — Fetch by ID (with all spans)
-  - `list_traces()` — Query with filters, sorting, pagination
-  - `list_agents()` — Distinct agent names
-  - Filtering: full-text (q), status, agent_name, date range, cost range
+#### Storage & CRUD (3 files, ~450 LOC)
+- **`storage.py`** — SQLite interface: init_db(), create_trace(user_id), add_spans_to_trace(), get_trace(), list_traces(user_id), list_agents(user_id). All queries scoped by user_id.
+- **`auth_storage.py`** — Auth CRUD: create_user (bcrypt hash), get_user_by_email, verify_password, create_api_key (SHA-256 hash, al_ prefix), validate_api_key, list_user_api_keys, delete_api_key, get_user_by_id.
+- **`alert_storage.py`** — Alert CRUD with user_id scoping: create_alert_rule, list_alert_rules, update_alert_rule, delete_alert_rule, create_alert_event, list_alert_events, resolve_alert_event, get_unresolved_alert_count.
 
-#### SSE Bus (1 file, ~60 LOC)
-- **`sse.py`** — In-memory event bus:
-  - `publish(event_name, data)` — Broadcast to all subscribers
-  - Events: `span_created`, `trace_updated`
-  - Subscribers: List of EventSource connections
+#### API Routers (3 files, ~250 LOC)
+- **`main.py`** (inline routes) — Traces, spans, agents, OTel, SSE stream.
+- **`auth_routes.py`** — /api/auth/* (register, login, me, api-keys CRUD).
+- **`alert_routes.py`** — /api/alert-rules CRUD + /api/alerts (list, resolve, summary).
+
+#### Auth Helpers (3 files, ~120 LOC)
+- **`auth_jwt.py`** — create_token / decode_token. HS256, 24h expiry. Secret from AGENTLENS_JWT_SECRET env.
+- **`auth_deps.py`** — get_current_user FastAPI dependency: Bearer JWT → user; ApiKey header → user. get_optional_user for migration fallback.
+- **`auth_seed.py`** — On startup: create admin@agentlens.local if no users; migrate orphan traces/alert_rules/alert_events to admin.
+
+#### Alert Engine (2 files, ~150 LOC)
+- **`alert_evaluator.py`** — evaluate_alert_rules(trace_id, agent_name). Evaluates after each trace completes. Absolute + relative thresholds. 60s cooldown per rule. Metric computation: cost, latency, error_rate.
+- **`alert_notifier.py`** — publish_alert_sse() (SSE bus event). fire_webhook() (background thread, urllib, 5s timeout, never raises).
+
+#### SSE Bus (1 file, ~80 LOC)
+- **`sse.py`** — Per-user in-memory event bus: publish(event_name, data, user_id). Events: span_created, trace_updated, alert_fired. Subscribers filtered by user_id.
 
 #### Diff Algorithm (1 file, ~100 LOC)
-- **`diff.py`** — LCS span tree comparison:
-  - `compute_diff(left, right)` — Match spans by LCS
-  - Similarity scoring: name, type, duration
-  - Color assignment: green (match), red (deletion), blue (insertion)
-  - Returns: matches, insertions, deletions
+- **`diff.py`** — LCS span tree comparison: compute_diff(left, right). Similarity scoring: name, type, duration. Returns matches, insertions, deletions.
 
-#### Tests (3 files, ~38 tests, ~400 LOC)
+#### OTel Mapper (1 file, ~80 LOC)
+- **`otel_mapper.py`** — Pure function: map_otel_trace(otel_payload) → AgentLens TraceIn. Kind mapping: SERVER→agent_run, CLIENT→tool_call, INTERNAL→llm_call. agent_name from resource.attributes["service.name"].
+
+#### Tests (7 files, ~86 tests, ~900 LOC)
 - **`test_api_endpoints.py`** — Endpoint tests: POST /traces, POST /spans, GET /traces (filters), GET /compare
-- **`test_sse.py`** — Event bus: publish, subscribe, multiple subscribers
+- **`test_otel_ingestion.py`** — OTel mapper unit tests + /api/otel/v1/traces integration (8 tests)
+- **`test_sse.py`** — Event bus: publish, subscribe, per-user filtering
 - **`test_storage.py`** — CRUD: create, list, filter, sort, pagination
-- **`conftest.py`** — Fixtures: test client, in-memory DB
+- **`test_auth_routes.py`** — Auth flows: register, login, me, API keys, tenant isolation (27 tests)
+- **`test_alert_routes.py`** — Alert rule CRUD, evaluation, events, resolve (14 tests)
+- **`conftest.py`** — Fixtures: test client, in-memory DB, user fixtures
 
 #### Config
 - **`requirements.txt`** — Dependencies: fastapi, uvicorn, sqlmodel, sqlalchemy, pydantic
@@ -146,9 +154,9 @@
 #### Exporters (1 file, ~80 LOC)
 - **`exporters/otel.py`** — OpenTelemetry exporter. Converts AgentLens spans → OTel trace format. Sends to OTel collector.
 
-#### Tests (3 files, ~52 tests, ~400 LOC)
+#### Tests (4 files, ~52 tests, ~400 LOC)
 - **`test_tracer.py`** — Tracer decorator, span context, parent-child hierarchy, logging
-- **`test_transport.py`** — Batch queue, flush, retry logic, concurrent requests
+- **`test_transport.py`** — Batch queue, flush, retry logic, concurrent requests (uses X-API-Key header)
 - **`test_cost.py`** — Pricing calculations for all 27 models
 - **`conftest.py`** — Fixtures: mock server, test traces
 
@@ -202,10 +210,13 @@ sdk/
 | `server/storage.py` | 12 | 95% |
 | `server/main.py` | 16 | 88% |
 | `server/diff.py` | 10 | 90% |
+| `server/auth_routes.py` | 27 | 90% |
+| `server/alert_routes.py` | 14 | 88% |
+| `server/otel_mapper.py` | 8 | 95% |
 | `sdk/tracer.py` | 18 | 92% |
 | `sdk/transport.py` | 20 | 85% |
 | `sdk/cost.py` | 14 | 100% |
-| **Total** | **90** | **>82%** |
+| **Total** | **139** | **86%** |
 
 ## Build & Deployment
 
@@ -217,33 +228,28 @@ cd sdk && pip install -e ".[dev]"
 ```
 
 ### Production Build
-```dockerfile
-# Multi-stage
-# Stage 1: React build (node:20-alpine)
-# Stage 2: Python runtime (python:3.11-slim)
-# Result: Single Docker image, React served from /static
-
-docker run -p 3000:3000 tranhoangtu/agentlens:0.2.0
+```bash
+# Set JWT secret in production
+docker run -p 3000:3000 \
+  -e AGENTLENS_JWT_SECRET=your-secret \
+  tranhoangtu/agentlens:0.5.0
+# First run: admin@agentlens.local / changeme — change immediately
 ```
 
 ### PyPI Distribution
 ```bash
-cd sdk
-pip install agentlens-observe==0.2.0
+pip install agentlens-observe==0.3.0
 ```
 
 ## Known Limitations & Future Work
 
-### Current (v0.2.0)
+### Current (v0.5.0)
 - SQLite backend (good for single-machine, limited concurrency)
-- No auth/RBAC (private network assumed)
-- No alert system
-- No time-travel debugging (replay)
+- No RBAC (all users see full admin panel if is_admin)
+- OTel ingestion: OTLP HTTP JSON only (no protobuf/gRPC)
+- JWT secret auto-generated if AGENTLENS_JWT_SECRET unset (restarts invalidate tokens)
 
 ### Roadmap
-- PostgreSQL backend
-- OTel ingestion (receive spans from other systems)
-- TypeScript SDK
-- Alerting framework
-- Multi-tenant auth
-- Replay/time-travel debugging
+- PostgreSQL backend (next milestone)
+- TypeScript SDK framework integrations (LangChain.js, LlamaIndex.js)
+- RBAC (role-based access, org-level scoping)

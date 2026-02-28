@@ -1,4 +1,4 @@
-# AgentLens v0.4.0 — System Architecture
+# AgentLens v0.5.0 — System Architecture
 
 ## High-Level Architecture
 
@@ -6,7 +6,7 @@
 ┌─────────────────────┐
 │   Python Agent      │
 │ @agentlens.trace    │──────────────────────────────────────────────────────────┐
-│ @agentlens.span     │                                                          │
+│ @agentlens.span     │  X-API-Key: al_xxx                                       │
 │ agentlens.log()     │                                                          │
 └─────────────────────┘                                                          │
                                                                                  ▼
@@ -14,23 +14,27 @@
 │  TypeScript Agent   │         │   AgentLens Server       │         │  Browser         │
 │  (Node 18+)         │         │  (FastAPI + SQLite)      │         │  Dashboard       │
 ├─────────────────────┤         ├──────────────────────────┤         ├──────────────────┤
-│ agentlens.trace()   │────────►│ POST /api/traces         │────────►│ Trace List Page  │
-│ agentlens.span()    │         │ POST /api/traces/{id}/spans        │ (Trace Table)    │
-│ agentlens.log()     │         │ POST /api/otel/v1/traces │         │                  │
-└─────────────────────┘         │                          │         │ Trace Detail:    │
-                                │ SSE Bus                  │         │ ├─ Topology Graph │
-┌─────────────────────┐         │ ├─ span_created          │◄────────┤ ├─ Span Panel     │
-│  OTel-instrumented  │         │ └─ trace_updated         │         │ └─ Cost Chart    │
-│  system (any lang)  │────────►│                          │         │                  │
-│  OTLP HTTP JSON     │         │ SQLite (WAL)             │         │ Trace Compare:   │
-└─────────────────────┘         │ ├─ Trace (idx)           │         │ ├─ Left Graph    │
-                                │ └─ Span (idx)            │         │ ├─ Right Graph   │
-                                └──────────────────────────┘         │ └─ Diff Panel    │
-                                         ▲                           │                  │
-                                         │                           │ Trace Replay:    │
-                                    Batch Transport                  │ ├─ Timeline bar  │
-                                    Python: httpx + queue            │ └─ Transport ctrl│
-                                    TypeScript: fetch + queue        └──────────────────┘
+│ agentlens.trace()   │────────►│ Auth: JWT Bearer / API   │────────►│ Login Page       │
+│ agentlens.span()    │         │       Key (X-API-Key)    │         │ Trace List Page  │
+│ agentlens.log()     │         │ POST /api/traces         │         │ Alert Rules Page │
+└─────────────────────┘         │ POST /api/traces/{id}/spans        │ Alerts List Page │
+                                │ POST /api/otel/v1/traces │         │                  │
+┌─────────────────────┐         │                          │         │ Trace Detail:    │
+│  OTel-instrumented  │         │ SSE Bus (per-user)       │         │ ├─ Topology Graph │
+│  system (any lang)  │────────►│ ├─ span_created          │◄────────┤ ├─ Span Panel     │
+│  OTLP HTTP JSON     │         │ ├─ trace_updated         │         │ └─ Cost Chart    │
+└─────────────────────┘         │ └─ alert_fired           │         │                  │
+                                │                          │         │ Trace Replay:    │
+                                │ SQLite (WAL)             │         │ ├─ Timeline bar  │
+                                │ ├─ User / ApiKey         │         │ └─ Transport ctrl│
+                                │ ├─ Trace / Span (idx)   │         └──────────────────┘
+                                │ ├─ AlertRule             │
+                                │ └─ AlertEvent            │
+                                └──────────────────────────┘
+                                         ▲
+                                    Batch Transport
+                                    Python: httpx + queue
+                                    TypeScript: fetch + queue
 ```
 
 ## Component Breakdown
@@ -41,10 +45,14 @@
 
 | Component | Purpose |
 |-----------|---------|
+| `pages/login-page.tsx` | Email/password login; stores JWT in localStorage |
+| `pages/api-keys-page.tsx` | Create, list, delete API keys |
 | `pages/traces-list-page.tsx` | Trace discovery, search, filters, pagination |
 | `pages/trace-detail-page.tsx` | Single trace with topology graph + span panel |
 | `pages/trace-compare-page.tsx` | Side-by-side diff of two traces (lazy-loaded) |
 | `pages/trace-replay-page.tsx` | Time-travel replay — route `#/traces/:id/replay` |
+| `pages/alert-rules-page.tsx` | CRUD UI for alert rules |
+| `pages/alerts-list-page.tsx` | View + resolve fired alert events |
 | `components/trace-list-table.tsx` | Virtualized table (@tanstack/react-virtual) |
 | `components/trace-topology-graph.tsx` | React Flow DAG visualization |
 | `components/trace-compare-graphs.tsx` | Dual topology views for comparison |
@@ -66,13 +74,17 @@
 - `tooltip.tsx` — Hover help
 - `scroll-area.tsx` — Custom scrollbars
 
-**Hooks** (`lib/`)
-- `use-sse-traces.ts` — EventSource subscription, span_created/trace_updated listeners
+**Hooks & Utilities** (`lib/`)
+- `use-sse-traces.ts` — EventSource subscription, span_created/trace_updated/alert_fired listeners
 - `use-live-trace-detail.ts` — Real-time trace detail updates
 - `use-trace-filters.ts` — State management for filters
 - `use-replay-controls.ts` — Replay cursor/timer/speed state machine
 - `api-client.ts` — Typed API calls (fetch wrapper)
 - `diff-utils.ts` — Frontend span matching, color coding
+- `fetch-with-auth.ts` — Fetch wrapper that injects Authorization header from auth context
+- `auth-api-client.ts` — Typed auth calls: login, register, getMe, createApiKey, listApiKeys, deleteApiKey
+- `auth-context.tsx` — React context: AuthProvider, useAuth hook; token persisted in localStorage
+- `alert-api-client.ts` — Typed alert calls: createRule, listRules, updateRule, deleteRule, listAlerts, resolveAlert, alertsSummary
 
 **Replay Components** (`components/`)
 - `replay-transport-controls.tsx` — Play/pause, step prev/next, speed selector
@@ -85,28 +97,63 @@
 
 ### Backend (FastAPI + SQLite)
 
-**API Endpoints** (`server/main.py`)
+**API Endpoints**
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
-| `/api/health` | GET | Liveness check |
-| `/api/traces` | POST | Create trace (all spans in one go) |
-| `/api/traces/{id}/spans` | POST | Append spans (incremental ingestion) |
-| `/api/traces` | GET | List traces (q, status, agent, date, cost filters + sort) |
-| `/api/traces/{id}` | GET | Fetch single trace with all spans |
-| `/api/traces/compare` | GET | Compute diff for two traces |
-| `/api/agents` | GET | Distinct agent names for filter dropdown |
-| `/api/otel/v1/traces` | POST | OTLP HTTP JSON ingestion (OTel-instrumented systems) |
+All endpoints except `/api/health` and `/api/auth/*` registration/login require `Authorization: Bearer <jwt>` or `X-API-Key: al_...`.
+
+| Endpoint | Method | Auth | Purpose |
+|----------|--------|------|---------|
+| `/api/health` | GET | Public | Liveness check |
+| `/api/auth/register` | POST | Public | Create user account |
+| `/api/auth/login` | POST | Public | Email/password login → JWT |
+| `/api/auth/me` | GET | JWT/ApiKey | Current user profile |
+| `/api/auth/api-keys` | POST | JWT/ApiKey | Create API key (returned once) |
+| `/api/auth/api-keys` | GET | JWT/ApiKey | List API keys (prefix only) |
+| `/api/auth/api-keys/{id}` | DELETE | JWT/ApiKey | Revoke API key |
+| `/api/traces` | POST | JWT/ApiKey | Create trace (all spans in one go) |
+| `/api/traces/{id}/spans` | POST | JWT/ApiKey | Append spans (incremental) |
+| `/api/traces` | GET | JWT/ApiKey | List traces (q, status, agent, date, cost + sort) |
+| `/api/traces/{id}` | GET | JWT/ApiKey | Fetch single trace with all spans |
+| `/api/traces/compare` | GET | JWT/ApiKey | Compute diff for two traces |
+| `/api/agents` | GET | JWT/ApiKey | Distinct agent names for filter dropdown |
+| `/api/otel/v1/traces` | POST | JWT/ApiKey | OTLP HTTP JSON ingestion |
+| `/api/alert-rules` | POST | JWT/ApiKey | Create alert rule |
+| `/api/alert-rules` | GET | JWT/ApiKey | List alert rules (agent_name, metric, enabled filters) |
+| `/api/alert-rules/{id}` | PUT | JWT/ApiKey | Update alert rule |
+| `/api/alert-rules/{id}` | DELETE | JWT/ApiKey | Delete alert rule |
+| `/api/alerts` | GET | JWT/ApiKey | List alert events (agent_name, resolved, pagination) |
+| `/api/alerts/{id}/resolve` | PATCH | JWT/ApiKey | Mark alert event resolved |
+| `/api/alerts/summary` | GET | JWT/ApiKey | Unresolved alert count |
 
 **Middleware**
 - GZipMiddleware (compress JSON >1KB)
 - CORSMiddleware (allow all origins for dev)
 
-**Database** (`server/models.py`)
+**Database** (`server/models.py`, `server/auth_models.py`, `server/alert_models.py`)
 
 ```python
-class Trace:
+class User:                        # auth_models.py
     id: str [PK]
+    email: str [UNIQUE, INDEX]
+    password_hash: str             # bcrypt 12 rounds
+    display_name: str [NULLABLE]
+    is_admin: bool
+    created_at: datetime
+    updated_at: datetime
+
+class ApiKey:                      # auth_models.py
+    id: str [PK]
+    user_id: str [INDEX]
+    key_hash: str                  # SHA-256 of raw key (never stored plain)
+    key_prefix: str                # First 8 chars "al_xxxx..."
+    name: str
+    created_at: datetime
+    last_used_at: datetime [NULLABLE]
+    # Index: (key_hash)
+
+class Trace:                       # models.py
+    id: str [PK]
+    user_id: str [NULLABLE, INDEX] # owner (set on ingestion)
     agent_name: str [INDEX]
     created_at: datetime [INDEX]
     status: str [INDEX] (running|completed|error)
@@ -114,20 +161,16 @@ class Trace:
     total_cost_usd: float
     total_tokens: int
     duration_ms: int
+    # Compound indexes: (status, created_at), (agent_name, created_at)
 
-    # Compound indexes for filtering:
-    # (status, created_at)
-    # (agent_name, created_at)
-    # (total_cost_usd)
-
-class Span:
+class Span:                        # models.py
     id: str [PK]
     trace_id: str [FK, INDEX]
-    parent_id: str [NULLABLE, FK]  # DAG tree structure
+    parent_id: str [NULLABLE, FK]
     name: str
     type: str (llm_call|tool_call|handoff|agent_spawn)
     start_ms: int
-    end_ms: int [NULLABLE]  # Running spans have NULL
+    end_ms: int [NULLABLE]
     input: str [JSON, NULLABLE]
     output: str [JSON, NULLABLE]
     cost_model: str
@@ -135,6 +178,35 @@ class Span:
     cost_output_tokens: int
     cost_usd: float
     metadata_json: str [JSON]
+
+class AlertRule:                   # alert_models.py
+    id: str [PK]
+    user_id: str [NULLABLE, INDEX]
+    name: str
+    agent_name: str [INDEX]        # "*" = wildcard (all agents)
+    metric: str                    # cost|latency|error_rate|missing_span
+    operator: str                  # gt|lt|gte|lte
+    threshold: float
+    mode: str                      # absolute|relative
+    window_size: int               # last N traces for rolling baseline
+    enabled: bool [INDEX]
+    webhook_url: str [NULLABLE]
+    created_at: datetime [INDEX]
+    # Compound index: (agent_name, metric)
+
+class AlertEvent:                  # alert_models.py
+    id: str [PK]
+    rule_id: str [INDEX]
+    trace_id: str [INDEX]
+    user_id: str [NULLABLE, INDEX]
+    agent_name: str [INDEX]
+    metric: str
+    value: float
+    threshold: float
+    message: str
+    resolved: bool [INDEX]
+    created_at: datetime [INDEX]
+    # Compound index: (rule_id, created_at)
 ```
 
 **Storage** (`server/storage.py`)
@@ -145,11 +217,27 @@ class Span:
 - Pagination: limit + offset
 
 **SSE Bus** (`server/sse.py`)
-- In-memory event bus
-- Subscribers connect via `/api/traces/stream` endpoint
+- In-memory per-user event bus
+- Subscribers connect via `/api/traces/stream` endpoint (auth required)
+- Per-user filtering: events only delivered to the owning user's SSE connection
 - Events:
   - `span_created`: {trace_id, span}
   - `trace_updated`: {trace_id, status, span_count, total_cost_usd, duration_ms}
+  - `alert_fired`: {alert_id, rule_name, agent_name, metric, message}
+
+**Auth Modules** (`server/auth_*.py`)
+- `auth_models.py` — User + ApiKey SQLModel tables + request schemas
+- `auth_storage.py` — CRUD: create_user, get_user_by_email, verify_password (bcrypt), create_api_key, validate_api_key (SHA-256 lookup), list_user_api_keys, delete_api_key
+- `auth_jwt.py` — create_token / decode_token (PyJWT, HS256, 24h expiry); secret from AGENTLENS_JWT_SECRET env or auto-generated
+- `auth_deps.py` — get_current_user FastAPI dependency: reads Authorization header (Bearer JWT or ApiKey), also checks X-API-Key header
+- `auth_routes.py` — /api/auth/* endpoints
+- `auth_seed.py` — Creates admin@agentlens.local on first run; migrates orphan traces/alerts to admin
+
+**Alert Modules** (`server/alert_*.py`)
+- `alert_models.py` — AlertRule + AlertEvent SQLModel tables + request schemas (AlertRuleIn, AlertRuleUpdate)
+- `alert_storage.py` — CRUD with user_id scoping: create_alert_rule, list_alert_rules, update_alert_rule, delete_alert_rule, create_alert_event, list_alert_events, resolve_alert_event, get_unresolved_alert_count
+- `alert_evaluator.py` — evaluate_alert_rules(trace_id, agent_name): called after each trace completion; supports absolute + relative (rolling baseline) thresholds; 60s cooldown per rule
+- `alert_notifier.py` — publish_alert_sse() + fire_webhook() (fire-and-forget background thread, 5s timeout, stdlib urllib)
 
 **Diff Algorithm** (`server/diff.py`)
 - LCS (Longest Common Subsequence) on span tree
@@ -224,11 +312,13 @@ class Span:
 
 ### Testing
 
-**Server Tests** (`server/tests/`, 46 tests)
+**Server Tests** (`server/tests/`, 86 tests, 86% coverage)
 - `test_api_endpoints.py` — POST /traces, POST /spans, GET /traces, GET /compare
 - `test_otel_ingestion.py` — POST /api/otel/v1/traces, otel_mapper unit tests (8 tests)
-- `test_sse.py` — Event bus, subscriptions
+- `test_sse.py` — Event bus, subscriptions, per-user filtering
 - `test_storage.py` — CRUD, filtering, sorting
+- `test_auth_routes.py` — Register, login, me, API keys, tenant isolation (27 tests)
+- `test_alert_routes.py` — Alert rule CRUD, alert events, resolve, summary (14 tests)
 
 **Python SDK Tests** (`sdk/tests/`)
 - `test_tracer.py` — Decorator, context manager, span hierarchy
@@ -240,15 +330,16 @@ class Span:
 - Transport batch queue and flush
 - Cost calculation accuracy
 
-Coverage: >82% (pytest + coverage.py)
+Coverage: 86% (pytest + coverage.py)
 
 ## Data Flow
 
-### 1. Trace Creation
+### 1. Trace Creation (Authenticated)
 ```python
+agentlens.configure(server_url="http://localhost:3000", api_key="al_...")
+
 @agentlens.trace(name="ResearchAgent")
 def run_agent():
-    # Decorator captures span hierarchy
     with agentlens.span("web_search", "tool_call"):
         result = search(query)
     return result
@@ -257,9 +348,25 @@ def run_agent():
 # 1. Tracer collects all spans (parent-child links)
 # 2. On function exit, transport.batch_queue.put(trace)
 # 3. Batch transport flushes every N spans or T seconds
-# 4. httpx.post(server_url + "/api/traces", json=trace_pb)
-# 5. Server: create_trace() → SQLite → publish("trace_created")
-# 6. Browser: EventSource receives span_created, renders nodes
+# 4. httpx.post(..."/api/traces", headers={"X-API-Key": "al_..."}, json=trace_pb)
+# 5. Server: auth_deps.get_current_user validates API key → user
+# 6. create_trace(user_id=user.id) → SQLite
+# 7. evaluate_alert_rules(trace_id, agent_name) → fires AlertEvents if triggered
+# 8. publish("trace_created", user_id=...) → SSE filtered to owning user
+# 9. Browser: EventSource receives span_created, renders nodes
+```
+
+### 1b. Alert Evaluation Flow
+```
+Trace arrives → evaluate_alert_rules()
+  ↓
+For each enabled rule matching agent_name (or "*"):
+  1. Check cooldown (skip if last event < 60s ago)
+  2. Compute metric: cost | latency | error_rate
+  3. If mode=relative: compute rolling baseline avg (last N traces)
+  4. Compare value op threshold (gt|lt|gte|lte)
+  5. If triggered: create AlertEvent → publish SSE "alert_fired"
+                   + fire webhook POST (background thread, 5s timeout)
 ```
 
 ### 2. Real-Time Streaming
@@ -312,6 +419,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3000"]
 ```
 
 ### Environment Variables
+- `AGENTLENS_JWT_SECRET` — JWT signing secret (auto-generated if unset; set in production)
 - `SERVER_URL` — Server base URL (SDK config)
 - `BATCH_SIZE` — Spans per flush (default: 50)
 - `BATCH_INTERVAL` — Flush interval seconds (default: 5)
@@ -322,5 +430,5 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3000"]
 2. **Time-Series DB** — Separate cost/metrics data to InfluxDB
 3. **Message Queue** — Redis/RabbitMQ for high-volume ingestion
 4. **Caching** — Redis cache for frequent trace queries
-5. **Multi-Tenant** — Auth, tenant isolation, quota enforcement
-6. **TypeScript SDK Framework Integrations** — LangChain.js, LlamaIndex.js, Vercel AI SDK
+5. **TypeScript SDK Framework Integrations** — LangChain.js, LlamaIndex.js, Vercel AI SDK
+6. **RBAC** — Role-based access control, org-level tenant scoping
