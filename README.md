@@ -39,7 +39,7 @@
 
 ```bash
 # 1. Start the dashboard
-docker run -p 3000:3000 tranhoangtu/agentlens:0.4.0
+docker run -p 3000:3000 tranhoangtu/agentlens:0.5.0
 
 # 2. Install the SDK (Python or TypeScript)
 pip install agentlens-observe   # Python
