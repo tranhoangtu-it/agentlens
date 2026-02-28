@@ -20,24 +20,26 @@ from models import Trace, Span
 
 @pytest.fixture(autouse=True)
 def test_db(tmp_path):
-    """Use fresh in-memory SQLite for each test."""
-    # Create test DB file in temp directory
-    db_path = tmp_path / "test.db"
+    """Fresh DB for each test. Uses TEST_DATABASE_URL (Postgres) or SQLite."""
+    test_url = os.environ.get("TEST_DATABASE_URL")
 
-    # Create engine with test database
-    engine = create_engine(
-        f"sqlite:///{db_path}",
-        connect_args={"check_same_thread": False},
-        echo=False,
-    )
-
-    # Create tables
-    SQLModel.metadata.create_all(engine)
-
-    # Enable WAL mode like production
-    with engine.connect() as conn:
-        conn.execute(text("PRAGMA journal_mode=WAL"))
-        conn.commit()
+    if test_url:
+        # PostgreSQL: create tables, run test, then drop tables
+        engine = create_engine(test_url, echo=False)
+        SQLModel.metadata.drop_all(engine)
+        SQLModel.metadata.create_all(engine)
+    else:
+        # SQLite: temp file per test
+        db_path = tmp_path / "test.db"
+        engine = create_engine(
+            f"sqlite:///{db_path}",
+            connect_args={"check_same_thread": False},
+            echo=False,
+        )
+        SQLModel.metadata.create_all(engine)
+        with engine.connect() as conn:
+            conn.execute(text("PRAGMA journal_mode=WAL"))
+            conn.commit()
 
     # Replace global engine
     storage._engine = engine
@@ -45,6 +47,9 @@ def test_db(tmp_path):
     yield engine
 
     # Cleanup
+    if test_url:
+        SQLModel.metadata.drop_all(engine)
+        engine.dispose()
     storage._engine = None
 
 

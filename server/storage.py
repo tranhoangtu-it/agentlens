@@ -1,4 +1,4 @@
-"""SQLite CRUD layer for AgentLens using SQLModel + WAL mode."""
+"""CRUD layer for AgentLens using SQLModel. Supports SQLite (default) and PostgreSQL."""
 
 import json
 import os
@@ -10,24 +10,30 @@ from sqlmodel import Session, SQLModel, col, create_engine, select
 
 from models import Span, Trace
 
+# PostgreSQL via DATABASE_URL; falls back to SQLite file path
 DB_PATH = os.environ.get("AGENTLENS_DB_PATH", "./agentlens.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
 _engine = None
 
 
 def _get_engine():
     global _engine
     if _engine is None:
-        _engine = create_engine(f"sqlite:///{DB_PATH}", connect_args={"check_same_thread": False})
+        kwargs = {}
+        if DATABASE_URL.startswith("sqlite"):
+            kwargs["connect_args"] = {"check_same_thread": False}
+        _engine = create_engine(DATABASE_URL, **kwargs)
     return _engine
 
 
 def init_db():
-    """Create tables and enable WAL mode for better concurrency."""
+    """Create tables. Enable WAL mode for SQLite only."""
     engine = _get_engine()
     SQLModel.metadata.create_all(engine)
-    with engine.connect() as conn:
-        conn.execute(text("PRAGMA journal_mode=WAL"))
-        conn.commit()
+    if engine.dialect.name == "sqlite":
+        with engine.connect() as conn:
+            conn.execute(text("PRAGMA journal_mode=WAL"))
+            conn.commit()
 
 
 def create_trace(trace_id: str, agent_name: str, spans_data: list[dict]) -> Trace:
