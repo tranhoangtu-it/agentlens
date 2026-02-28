@@ -29,6 +29,7 @@
 - **Cost tracking** — 27 models priced (GPT-4.1, Claude 4, Gemini 2.0, DeepSeek, Llama 3.3)
 - **Framework integrations** — LangChain, CrewAI, AutoGen, LlamaIndex, Google ADK
 - **OpenTelemetry export** — bridge spans to any OTel-compatible backend
+- **OpenTelemetry ingestion** — receive OTLP HTTP JSON spans from any OTel-instrumented app
 - **Batch transport** — configurable queue with auto-flush for high-throughput agents
 - **Self-hosted** — `docker run` and done. Your data never leaves your machine.
 - **90+ tests** — server + SDK with >82% coverage
@@ -70,6 +71,8 @@ Your Agent (Python)          AgentLens Server          Browser Dashboard
       │   (fire-and-forget)        │                         │
       │   flush_span() ──────────► POST /api/traces/:id/spans► Real-time node updates
       │                            │                         │
+Any OTel App ────────────────────► POST /api/otel/v1/traces ► Same dashboard
+      │   (OTLP HTTP JSON)         │                         │
       │                            ├── SSE stream ──────────► span_created events
       │                            │                         │
       └── Never blocked            └── SQLite + WAL          └── Cost breakdown + diff
@@ -126,6 +129,38 @@ from agentlens.exporters.otel import AgentLensOTelExporter
 agentlens.add_exporter(AgentLensOTelExporter())
 ```
 
+### OpenTelemetry Ingestion
+
+Any OTel-instrumented app can push spans directly to AgentLens via the OTLP HTTP JSON endpoint:
+
+```bash
+# Point your OTel SDK exporter at AgentLens
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:3000/api/otel
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/json
+```
+
+```python
+# Or send spans manually
+import requests
+
+requests.post("http://localhost:3000/api/otel/v1/traces", json={
+    "resourceSpans": [{
+        "resource": {"attributes": [
+            {"key": "service.name", "value": {"stringValue": "my-agent"}}
+        ]},
+        "scopeSpans": [{"spans": [{
+            "traceId": "abc123", "spanId": "span001",
+            "parentSpanId": "", "name": "agent_run",
+            "kind": 2, "startTimeUnixNano": "1700000000000000000",
+            "endTimeUnixNano": "1700000001000000000",
+            "attributes": [], "status": {"code": 1}
+        }]}]
+    }]
+})
+```
+
+Span kind mapping: `SERVER` → `agent_run`, `CLIENT` → `tool_call`, `INTERNAL` → `llm_call`, default → `task`.
+
 ## Advanced Usage
 
 ### Batch Transport
@@ -181,7 +216,7 @@ cd sdk && pytest tests/
 - [x] ~~Search, filters, pagination~~
 - [x] ~~Framework integrations (AutoGen, LlamaIndex, Google ADK)~~
 - [x] ~~Replay/time-travel debugging~~
-- [ ] OpenTelemetry ingestion (receive OTel spans)
+- [x] ~~OpenTelemetry ingestion (receive OTel spans)~~
 - [ ] PostgreSQL backend
 - [ ] TypeScript SDK
 - [ ] Alerting on agent behavior anomalies
