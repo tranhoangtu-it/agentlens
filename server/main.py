@@ -14,6 +14,8 @@ from sse import bus
 from storage import add_spans_to_trace, create_trace, get_trace, get_trace_pair, init_db, list_agents, list_traces
 from diff import compute_diff
 from otel_mapper import map_otlp_request
+from alert_routes import router as alert_router
+from alert_evaluator import evaluate_alert_rules
 
 
 @asynccontextmanager
@@ -27,6 +29,8 @@ app = FastAPI(title="AgentLens", lifespan=lifespan)
 # GZip compression for JSON responses (skip small payloads)
 from fastapi.middleware.gzip import GZipMiddleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+
+app.include_router(alert_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,6 +59,10 @@ def ingest_trace(body: TraceIn):
     # Publish span_created for each span so live detail pages update
     for s in body.spans:
         bus.publish("span_created", {"trace_id": trace.id, "span": s.model_dump()})
+    # Evaluate alert rules if trace completed
+    if trace.status == "completed":
+        evaluate_alert_rules(trace.id, trace.agent_name)
+
     return {"trace_id": trace.id, "status": trace.status}
 
 
@@ -88,6 +96,10 @@ def ingest_spans(trace_id: str, body: SpansIn):
         "duration_ms": trace.duration_ms,
     })
 
+    # Evaluate alert rules if trace completed
+    if trace.status == "completed":
+        evaluate_alert_rules(trace.id, trace.agent_name)
+
     return {"trace_id": trace.id, "status": trace.status, "new_span_count": len(new_spans)}
 
 
@@ -120,6 +132,10 @@ def ingest_otel_traces(body: dict):
 
         for s in spans_data:
             bus.publish("span_created", {"trace_id": trace_id, "span": s})
+
+        # Evaluate alert rules if trace completed
+        if trace.status == "completed":
+            evaluate_alert_rules(trace.id, trace.agent_name)
 
     return {"status": "ok", "traces_received": len(groups)}
 

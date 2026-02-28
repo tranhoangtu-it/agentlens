@@ -244,7 +244,7 @@ DATABASE_URL=postgresql://user:pass@localhost:5432/agentlens .venv/bin/uvicorn m
 - [x] ~~OpenTelemetry ingestion (receive OTel spans)~~
 - [x] ~~PostgreSQL backend~~
 - [x] ~~TypeScript SDK~~
-- [ ] Alerting on agent behavior anomalies
+- [x] ~~Alerting on agent behavior anomalies~~
 - [ ] Multi-tenant auth
 
 ## License

@@ -6,7 +6,10 @@ import { TracesListPage } from './pages/traces-list-page'
 import { TraceDetailPage } from './pages/trace-detail-page'
 import { TraceReplayPage } from './pages/trace-replay-page'
 import { cn } from './lib/utils'
-import { Activity, Cpu } from 'lucide-react'
+import { Activity, Bell, Settings, Cpu } from 'lucide-react'
+import { AlertsListPage } from './pages/alerts-list-page'
+import { AlertRulesPage } from './pages/alert-rules-page'
+import { fetchAlertsSummary } from './lib/alert-api-client'
 
 // Lazy load compare page — rarely used, large dependency (diff utils)
 const TraceComparePage = lazy(() =>
@@ -18,12 +21,15 @@ type Route =
   | { name: 'detail'; id: string }
   | { name: 'replay'; id: string }
   | { name: 'compare'; leftId: string; rightId: string }
+  | { name: 'alerts' }
+  | { name: 'alert-rules' }
 
 function parseHash(hash: string): Route {
   const path = hash.replace(/^#\/?/, '')
+  if (path === 'alerts') return { name: 'alerts' }
+  if (path === 'alert-rules') return { name: 'alert-rules' }
   const compareMatch = path.match(/^compare\/([^/]+)\/(.+)$/)
   if (compareMatch) return { name: 'compare', leftId: compareMatch[1], rightId: compareMatch[2] }
-  // Check replay before detail — more specific route first
   const replayMatch = path.match(/^traces\/([^/]+)\/replay$/)
   if (replayMatch) return { name: 'replay', id: decodeURIComponent(replayMatch[1]) }
   const detailMatch = path.match(/^traces\/(.+)$/)
@@ -65,11 +71,20 @@ function NavItem({
 
 export default function App() {
   const [route, setRoute] = useState<Route>(() => parseHash(window.location.hash))
+  const [unresolvedCount, setUnresolvedCount] = useState(0)
 
   useEffect(() => {
     const onHashChange = () => setRoute(parseHash(window.location.hash))
     window.addEventListener('hashchange', onHashChange)
     return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
+
+  // Poll unresolved alert count every 30s
+  useEffect(() => {
+    const poll = () => fetchAlertsSummary().then((r) => setUnresolvedCount(r.unresolved_count)).catch(() => {})
+    poll()
+    const timer = setInterval(poll, 30_000)
+    return () => clearInterval(timer)
   }, [])
 
   function navigateToTrace(id: string) {
@@ -115,8 +130,27 @@ export default function App() {
           <NavItem
             icon={Activity}
             label="Traces"
-            active={true}
+            active={route.name === 'list' || route.name === 'detail' || route.name === 'replay' || route.name === 'compare'}
             onClick={navigateToList}
+          />
+          <div className="relative">
+            <NavItem
+              icon={Bell}
+              label="Alerts"
+              active={route.name === 'alerts'}
+              onClick={() => setHash('alerts')}
+            />
+            {unresolvedCount > 0 && (
+              <span className="absolute top-1 right-2 min-w-[18px] h-[18px] flex items-center justify-center rounded-full bg-red-500 text-white text-[10px] font-bold px-1">
+                {unresolvedCount > 99 ? '99+' : unresolvedCount}
+              </span>
+            )}
+          </div>
+          <NavItem
+            icon={Settings}
+            label="Rules"
+            active={route.name === 'alert-rules'}
+            onClick={() => setHash('alert-rules')}
           />
         </nav>
 
@@ -172,6 +206,12 @@ export default function App() {
               <span className="text-muted-foreground font-mono text-xs truncate max-w-[160px]">{route.rightId}</span>
             </>
           )}
+          {route.name === 'alerts' && (
+            <span className="text-foreground font-medium">Alerts</span>
+          )}
+          {route.name === 'alert-rules' && (
+            <span className="text-foreground font-medium">Alert Rules</span>
+          )}
         </header>
 
         {/* Page content */}
@@ -193,6 +233,12 @@ export default function App() {
                 onBack={navigateToList}
               />
             </Suspense>
+          )}
+          {route.name === 'alerts' && (
+            <AlertsListPage onNavigateTrace={navigateToTrace} />
+          )}
+          {route.name === 'alert-rules' && (
+            <AlertRulesPage />
           )}
         </main>
       </div>
