@@ -1,7 +1,7 @@
 """Tests for OTel OTLP HTTP ingestion — mapper unit tests + endpoint integration."""
 
 import pytest
-from otel_mapper import map_otlp_request
+from otel_mapper import map_otlp_request, _ns_to_ms, _get_resource_attr
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -101,6 +101,68 @@ class TestOtelMapperUnit:
         assert s["output"] == "world"
         # input/output should NOT appear in metadata
         assert s["metadata"] == {"custom_key": "custom_val"}
+
+    def test_ns_to_ms_falsy_input(self):
+        """_ns_to_ms returns None for falsy/invalid values."""
+        assert _ns_to_ms(None) is None
+        assert _ns_to_ms(0) is None
+        assert _ns_to_ms("") is None
+
+    def test_ns_to_ms_invalid_type(self):
+        """_ns_to_ms returns None for non-numeric strings."""
+        assert _ns_to_ms("not-a-number") is None
+        assert _ns_to_ms([]) is None
+
+    def test_resource_attr_key_not_found(self):
+        """_get_resource_attr returns default when key is missing."""
+        resource = {"attributes": [
+            {"key": "other.key", "value": {"stringValue": "val"}}
+        ]}
+        result = _get_resource_attr(resource, "service.name", default="fallback")
+        assert result == "fallback"
+
+    def test_resource_attr_empty_attributes(self):
+        """_get_resource_attr returns default when attributes list is empty."""
+        resource = {"attributes": []}
+        result = _get_resource_attr(resource, "service.name", default="mydefault")
+        assert result == "mydefault"
+
+    def test_span_with_empty_trace_id_skipped(self):
+        """Span with empty traceId is silently skipped."""
+        body = {
+            "resourceSpans": [{
+                "resource": {"attributes": [
+                    {"key": "service.name", "value": {"stringValue": "svc"}}
+                ]},
+                "scopeSpans": [{"spans": [
+                    {
+                        "traceId": "",  # empty → skip
+                        "spanId": "sp-bad",
+                        "parentSpanId": "",
+                        "name": "bad-span",
+                        "kind": 1,
+                        "startTimeUnixNano": "1000000000000",
+                        "endTimeUnixNano": "2000000000000",
+                        "attributes": [],
+                        "status": {"code": 1},
+                    }
+                ]}],
+            }]
+        }
+        groups = map_otlp_request(body)
+        assert groups == []
+
+    def test_non_string_input_output_stringified(self):
+        """Non-string input/output attributes are converted to str."""
+        attrs = [
+            {"key": "input", "value": {"intValue": 42}},
+            {"key": "output", "value": {"boolValue": True}},
+        ]
+        body = _make_otlp_body(extra_attrs=attrs)
+        _, _, spans = map_otlp_request(body)[0]
+        s = spans[0]
+        assert s["input"] == "42"
+        assert s["output"] == "True"
 
 
 # ── Integration tests — POST /api/otel/v1/traces ─────────────────────────────

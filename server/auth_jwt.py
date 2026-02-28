@@ -1,13 +1,26 @@
 """JWT encode/decode helpers for AgentLens auth."""
 
+import logging
 import os
 import secrets
 from datetime import datetime, timezone, timedelta
 
 import jwt
 
-# Auto-generate secret if not set (persists for process lifetime)
-_JWT_SECRET = os.environ.get("AGENTLENS_JWT_SECRET", secrets.token_hex(32))
+logger = logging.getLogger(__name__)
+
+# Auto-generate secret if not set (persists for process lifetime only — tokens
+# will be invalidated on every restart without AGENTLENS_JWT_SECRET configured)
+_jwt_secret_env = os.environ.get("AGENTLENS_JWT_SECRET")
+if _jwt_secret_env:
+    _JWT_SECRET = _jwt_secret_env
+else:
+    _JWT_SECRET = secrets.token_hex(32)
+    logger.warning(
+        "AGENTLENS_JWT_SECRET is not set — a random secret was generated. "
+        "All JWT tokens will be invalidated on server restart. "
+        "Set AGENTLENS_JWT_SECRET in production to persist sessions."
+    )
 _JWT_ALGORITHM = "HS256"
 _JWT_EXPIRY_HOURS = 24
 

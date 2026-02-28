@@ -1,5 +1,7 @@
 """Tests for FastAPI endpoints in main.py."""
 
+import asyncio
+import threading
 import pytest
 import uuid
 
@@ -293,3 +295,85 @@ class TestListAgentsEndpoint:
         assert "agents" in body
         assert "search_agent" in body["agents"]
         assert "chat_agent" in body["agents"]
+
+
+class TestCompareTracesEndpoint:
+    """Test GET /api/traces/compare."""
+
+    def test_compare_traces_success(self, client, auth_headers):
+        """GET /api/traces/compare returns diff for two valid traces."""
+        left = make_api_trace_data(agent_name="agent_left")
+        right = make_api_trace_data(agent_name="agent_right")
+        client.post("/api/traces", json=left, headers=auth_headers)
+        client.post("/api/traces", json=right, headers=auth_headers)
+
+        response = client.get(
+            f"/api/traces/compare?left={left['trace_id']}&right={right['trace_id']}",
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert "left" in body
+        assert "right" in body
+        assert "diff" in body
+
+    def test_compare_traces_not_found(self, client, auth_headers):
+        """GET /api/traces/compare with missing trace returns 404."""
+        response = client.get(
+            f"/api/traces/compare?left=no-such-trace-{uuid.uuid4()}&right=also-missing-{uuid.uuid4()}",
+            headers=auth_headers,
+        )
+        assert response.status_code == 404
+
+
+class TestStreamTracesEndpoint:
+    """Test GET /api/traces/stream SSE endpoint."""
+
+    def test_stream_traces_unauthenticated(self, client):
+        """GET /api/traces/stream without auth returns 401 or 403."""
+        resp = client.get("/api/traces/stream")
+        assert resp.status_code in (401, 403)
+
+    @pytest.mark.asyncio
+    async def test_stream_traces_authenticated_returns_sse(self, client, auth_headers):
+        """GET /api/traces/stream with auth returns 200 text/event-stream.
+
+        Patches bus.subscribe to yield one event then stop, so the streaming
+        response completes and httpx can read status + content-type.
+        """
+        import httpx
+        from unittest.mock import patch, AsyncMock
+        from main import app as fastapi_app
+
+        async def _one_event_generator(user_id=None):
+            yield "event: trace_created\ndata: {}\n\n"
+
+        with patch("main.bus.subscribe", side_effect=_one_event_generator):
+            transport = httpx.ASGITransport(app=fastapi_app)
+            async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+                async with ac.stream("GET", "/api/traces/stream", headers=auth_headers) as resp:
+                    assert resp.status_code == 200
+                    assert "text/event-stream" in resp.headers.get("content-type", "")
+                    chunks = []
+                    async for chunk in resp.aiter_bytes():
+                        chunks.append(chunk)
+                    assert len(chunks) > 0
+
+
+class TestLifespan:
+    """Cover main.py lifespan context manager (lines 27-29)."""
+
+    @pytest.mark.asyncio
+    async def test_lifespan_calls_init_db_and_seed_admin(self, test_db):
+        """lifespan() calls init_db() and seed_admin() then yields (covers lines 27-29)."""
+        from unittest.mock import patch, call
+        from main import app, lifespan
+
+        # Patch both side-effect functions so lifespan body is executed without real DB init
+        with patch("main.init_db") as mock_init_db, \
+             patch("main.seed_admin") as mock_seed_admin:
+            async with lifespan(app):
+                # Inside the context — startup has run
+                mock_init_db.assert_called_once()
+                mock_seed_admin.assert_called_once()
+            # After the context — shutdown has run (yield returned)

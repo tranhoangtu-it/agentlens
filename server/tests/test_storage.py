@@ -7,6 +7,7 @@ from storage import (
     create_trace,
     list_traces,
     get_trace,
+    get_trace_pair,
     add_spans_to_trace,
     list_agents,
 )
@@ -390,3 +391,148 @@ class TestListAgents:
         # Just verify it returns a list
         agents = list_agents()
         assert isinstance(agents, list)
+
+
+class TestListTracesEdgeCases:
+    """Test edge cases in list_traces: invalid sort/order, to_date filter."""
+
+    def test_list_traces_invalid_sort_defaults_to_created_at(self):
+        """Invalid sort column falls back to created_at without error."""
+        data = make_trace_data()
+        create_trace(data["trace_id"], data["agent_name"], data["spans"])
+
+        # Should not raise; invalid sort → created_at
+        traces, total = list_traces(sort="not_a_column", order="desc")
+        assert total >= 1
+
+    def test_list_traces_invalid_order_defaults_to_desc(self):
+        """Invalid order value falls back to desc without error."""
+        data = make_trace_data()
+        create_trace(data["trace_id"], data["agent_name"], data["spans"])
+
+        traces, total = list_traces(sort="created_at", order="INVALID")
+        assert total >= 1
+
+    def test_list_traces_to_date_filter(self):
+        """to_date filter excludes traces created after the cutoff."""
+        data = make_trace_data()
+        create_trace(data["trace_id"], data["agent_name"], data["spans"])
+
+        # Far-future cutoff — trace should be included
+        traces, total = list_traces(to_date="2099-12-31T23:59:59")
+        assert total >= 1
+
+        # Far-past cutoff — trace created now should be excluded
+        traces_past, total_past = list_traces(to_date="2000-01-01T00:00:00")
+        assert total_past == 0
+
+
+class TestGetTracePair:
+    """Test get_trace_pair storage function."""
+
+    def test_get_trace_pair_success(self):
+        """get_trace_pair returns both traces and their spans."""
+        left_data = make_trace_data(agent_name="left_agent")
+        right_data = make_trace_data(agent_name="right_agent")
+        create_trace(left_data["trace_id"], left_data["agent_name"], left_data["spans"])
+        create_trace(right_data["trace_id"], right_data["agent_name"], right_data["spans"])
+
+        pair = get_trace_pair(left_data["trace_id"], right_data["trace_id"])
+        assert pair is not None
+        assert pair["left"]["trace"].id == left_data["trace_id"]
+        assert pair["right"]["trace"].id == right_data["trace_id"]
+        assert len(pair["left"]["spans"]) == 2
+        assert len(pair["right"]["spans"]) == 2
+
+    def test_get_trace_pair_missing_trace_returns_none(self):
+        """get_trace_pair returns None if either trace doesn't exist."""
+        data = make_trace_data()
+        create_trace(data["trace_id"], data["agent_name"], data["spans"])
+
+        result = get_trace_pair(data["trace_id"], f"nonexistent-{uuid.uuid4()}")
+        assert result is None
+
+    def test_get_trace_pair_both_missing_returns_none(self):
+        """get_trace_pair returns None when both IDs are missing."""
+        result = get_trace_pair(f"missing-{uuid.uuid4()}", f"also-missing-{uuid.uuid4()}")
+        assert result is None
+
+
+class TestGetEngineAndInitDb:
+    """Cover _get_engine() engine-creation path and init_db() WAL logic."""
+
+    def test_get_engine_creates_engine_when_none(self, tmp_path, monkeypatch):
+        """_get_engine() creates SQLite engine when _engine is None (covers lines 23-26)."""
+        import storage
+        from sqlmodel import create_engine as _ce
+
+        db_path = tmp_path / "engine_test.db"
+        test_url = f"sqlite:///{db_path}"
+
+        # Reset _engine to None so _get_engine() goes through the creation path
+        original_engine = storage._engine
+        original_url = storage.DATABASE_URL
+        try:
+            storage._engine = None
+            monkeypatch.setattr(storage, "DATABASE_URL", test_url)
+
+            engine = storage._get_engine()
+            assert engine is not None
+            # Should have set check_same_thread=False for sqlite (lines 24-25 covered)
+            assert storage._engine is engine
+        finally:
+            # Restore original engine and URL so other tests are unaffected
+            storage._engine = original_engine
+            storage.DATABASE_URL = original_url
+
+    def test_get_engine_non_sqlite_path(self, monkeypatch):
+        """_get_engine() with non-sqlite URL skips check_same_thread (PostgreSQL branch)."""
+        import storage
+        from unittest.mock import MagicMock, patch
+
+        original_engine = storage._engine
+        original_url = storage.DATABASE_URL
+
+        # Mock create_engine so we don't need a real PostgreSQL server
+        mock_engine = MagicMock()
+        try:
+            storage._engine = None
+            monkeypatch.setattr(storage, "DATABASE_URL", "postgresql://user:pass@localhost/test")
+
+            with patch("storage.create_engine", return_value=mock_engine) as mock_ce:
+                engine = storage._get_engine()
+                # Verify create_engine was called WITHOUT check_same_thread kwarg
+                call_kwargs = mock_ce.call_args[1]
+                assert "connect_args" not in call_kwargs
+                assert engine is mock_engine
+        finally:
+            storage._engine = original_engine
+            storage.DATABASE_URL = original_url
+
+    def test_init_db_creates_tables_and_enables_wal(self, tmp_path, monkeypatch):
+        """init_db() creates tables and enables WAL pragma for SQLite (covers lines 32-37)."""
+        import storage
+        from sqlmodel import SQLModel, create_engine as _ce
+
+        db_path = tmp_path / "initdb_test.db"
+        test_url = f"sqlite:///{db_path}"
+
+        # Build a fresh engine pointing at our temp db, reset _engine so init_db calls _get_engine
+        original_engine = storage._engine
+        original_url = storage.DATABASE_URL
+        try:
+            storage._engine = None
+            monkeypatch.setattr(storage, "DATABASE_URL", test_url)
+
+            # init_db() should not raise; it creates tables and runs PRAGMA WAL
+            storage.init_db()
+
+            # Confirm WAL mode was set
+            from sqlalchemy import text
+            engine = storage._engine
+            with engine.connect() as conn:
+                mode = conn.execute(text("PRAGMA journal_mode")).scalar()
+            assert mode == "wal"
+        finally:
+            storage._engine = original_engine
+            storage.DATABASE_URL = original_url
