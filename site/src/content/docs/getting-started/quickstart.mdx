@@ -1,0 +1,97 @@
+---
+title: Quickstart
+description: Get AgentLens running in under 5 minutes
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components';
+
+Get AgentLens running in under 5 minutes.
+
+## 1. Start the Dashboard
+
+```bash
+docker run -p 3000:3000 tranhoangtu/agentlens-observe:0.5.0
+```
+
+Open [http://localhost:3000](http://localhost:3000) — login with `admin@agentlens.local` / `changeme`.
+
+## 2. Install the SDK
+
+<Tabs>
+  <TabItem label="Python">
+    ```bash
+    pip install agentlens-observe
+    ```
+  </TabItem>
+  <TabItem label="TypeScript">
+    ```bash
+    npm install agentlens-observe
+    ```
+  </TabItem>
+</Tabs>
+
+## 3. Instrument Your Agent
+
+<Tabs>
+  <TabItem label="Python">
+    ```python
+    import agentlens
+
+    agentlens.configure(server_url="http://localhost:3000")
+
+    @agentlens.trace(name="ResearchAgent")
+    def run_agent(query: str) -> str:
+        with agentlens.span("web_search", "tool_call") as s:
+            result = search(query)
+            s.set_output(result)
+            s.set_cost("gpt-4o", input_tokens=500, output_tokens=200)
+        return summarize(result)
+
+    run_agent("Latest AI research papers")
+    # → Traces stream to http://localhost:3000
+    ```
+  </TabItem>
+  <TabItem label="TypeScript">
+    ```typescript
+    import * as agentlens from "agentlens-observe";
+
+    agentlens.configure({ serverUrl: "http://localhost:3000" });
+
+    const result = await agentlens.trace("ResearchAgent", async () => {
+      const s = agentlens.span("web_search", "tool_call").enter();
+      const data = await search(query);
+      s.setOutput(data);
+      s.setCost("gpt-4o", { inputTokens: 500, outputTokens: 200 });
+      s.exit();
+      return summarize(data);
+    });
+    ```
+  </TabItem>
+</Tabs>
+
+## 4. View Your Traces
+
+Navigate to [http://localhost:3000](http://localhost:3000) — your agent runs appear instantly with the interactive topology graph.
+
+## How It Works
+
+```
+Your Agent (Python/TS)       AgentLens Server          Browser Dashboard
+      │                            │                         │
+      ├── @agentlens.trace ──────► POST /api/traces ───────► Live topology graph
+      │   (fire-and-forget)        │                         │
+      │   flush_span() ──────────► POST /api/traces/:id/spans► Real-time node updates
+      │                            │                         │
+Any OTel App ────────────────────► POST /api/otel/v1/traces ► Same dashboard
+      │   (OTLP HTTP JSON)         │                         │
+      │                            ├── SSE stream ──────────► span_created events
+      │                            │                         │
+      └── Never blocked            └── SQLite/PostgreSQL      └── Cost breakdown + diff
+```
+
+## Next Steps
+
+- [Docker Setup](/getting-started/docker/) — compose, volumes, production config
+- [Configuration](/getting-started/configuration/) — environment variables
+- [Python SDK](/sdks/python/) — full API reference
+- [TypeScript SDK](/sdks/typescript/) — full API reference

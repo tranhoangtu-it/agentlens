@@ -1,0 +1,60 @@
+---
+title: AgentLens
+description: Debug AI agents visually — self-hosted, open-source observability
+template: splash
+hero:
+  tagline: Unlike LangSmith (paid, cloud-only) and Langfuse (LLM-focused), AgentLens understands agents — tool calls, handoffs, memory reads, and decision trees.
+  actions:
+    - text: Get Started
+      link: /getting-started/quickstart/
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/tranhoangtu-it/agentlens
+      icon: external
+---
+
+import { Card, CardGrid } from '@astrojs/starlight/components';
+
+## Why AgentLens?
+
+<CardGrid stagger>
+  <Card title="Agent-native observability" icon="magnifier">
+    Track tool calls, handoffs, memory reads, and decision trees — not just LLM token counts.
+  </Card>
+  <Card title="Self-hosted" icon="laptop">
+    `docker run` and done. Your traces never leave your infrastructure.
+  </Card>
+  <Card title="Live streaming" icon="rocket">
+    Watch your agent think in real-time with incremental span updates via SSE.
+  </Card>
+  <Card title="Multi-framework" icon="puzzle">
+    LangChain, CrewAI, AutoGen, LlamaIndex, Google ADK, and any OTel-instrumented app.
+  </Card>
+</CardGrid>
+
+## Features at a Glance
+
+| Feature | Description |
+|---------|-------------|
+| **Live trace streaming** | Watch your agent think in real-time with incremental span updates |
+| **Agent topology graph** | Visualize agent spawns, tool calls, and handoffs as an interactive DAG |
+| **Trace comparison** | Side-by-side diff of two agent runs with color-coded span matching |
+| **Search & filters** | Full-text search, status/agent/date/cost filters, sortable columns, pagination |
+| **Cost tracking** | 27 models priced — GPT-4.1, Claude 4, Gemini 2.0, DeepSeek, Llama 3.3 |
+| **Time-travel replay** | Scrub through any trace step-by-step at any speed |
+| **Alerting** | Detect cost spikes, error rates, latency anomalies, and missing spans |
+| **Multi-tenant auth** | JWT sessions, API key auth, per-user data isolation |
+| **OpenTelemetry** | Export to any OTel backend or receive OTLP HTTP JSON spans |
+| **231 tests** | Server + SDK with 100% coverage |
+
+## vs. Alternatives
+
+| | AgentLens | LangSmith | Langfuse |
+|-|-----------|-----------|----------|
+| **Self-hosted** | ✅ | ❌ cloud-only | ✅ |
+| **Agent topology graph** | ✅ | ❌ | ❌ |
+| **Free** | ✅ MIT | ❌ paid tiers | ⚠️ limited free |
+| **OTel ingestion** | ✅ | ❌ | ✅ |
+| **Time-travel replay** | ✅ | ❌ | ❌ |
+| **Alerting** | ✅ | ❌ | ⚠️ enterprise |
