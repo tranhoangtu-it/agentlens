@@ -1,6 +1,6 @@
-# AgentLens v0.5.0 — Product Overview & PDR
+# AgentLens v0.6.0 — Product Overview & PDR
 
-**Version:** 0.5.0 | **Release Date:** Feb 2026 | **Status:** Production
+**Version:** 0.6.0 | **Release Date:** Mar 2026 | **Status:** Production
 
 ## Executive Summary
 
@@ -20,8 +20,9 @@ AgentLens is a self-hosted, open-source AI agent observability platform. Unlike 
 
 - **PyPI (Python SDK):** `pip install agentlens-observe==0.3.0`
 - **npm (TypeScript SDK):** `npm install agentlens-observe@0.1.0`
-- **Docker:** `docker run -p 3000:3000 tranhoangtu/agentlens-observe:0.5.0`
+- **Docker:** `docker run -p 3000:3000 tranhoangtu/agentlens-observe:0.6.0`
 - **GitHub:** `github.com/tranhoangtu-it/agentlens-observe`
+- **Docs Site:** https://agentlens-observe.pages.dev
 - **License:** MIT
 
 ## Functional Requirements
@@ -85,10 +86,9 @@ AgentLens is a self-hosted, open-source AI agent observability platform. Unlike 
 - [x] Optional webhook POST delivery (fire-and-forget, 5s timeout)
 
 ### F10: Testing & Quality
-- [x] 86 server tests (pytest, httpx, respx)
-- [x] Python SDK tests
-- [x] 30 TypeScript SDK tests (vitest)
-- [x] 86% code coverage
+- [x] 231 tests (86 server + 52 Python SDK + 30 TypeScript SDK + 63 integration)
+- [x] 100% production code coverage
+- [x] pytest, httpx, respx, vitest test stack
 
 ## Non-Functional Requirements
 
@@ -107,10 +107,11 @@ AgentLens is a self-hosted, open-source AI agent observability platform. Unlike 
 - Future: PostgreSQL backend
 
 ### Security
-- JWT HS256, 24h token expiry; secret from AGENTLENS_JWT_SECRET env
+- JWT HS256, 24h token expiry; secret from AGENTLENS_JWT_SECRET env (with startup warning)
 - bcrypt password hashing (12 rounds); SHA-256 API key hashing (raw never stored)
 - Cross-tenant access returns 404 (not 403) to prevent resource enumeration
-- CORS enabled (all origins for localhost dev); HTTPS recommended for production
+- CORS configurable via environment (all origins for localhost dev; production lockdown)
+- Webhook SSRF protection (block private IP ranges)
 - OTel bridge for multi-backend export
 
 ### Reliability
@@ -143,7 +144,7 @@ Your Agent (Python)          AgentLens Server          Browser Dashboard
 | Testing | pytest, httpx, respx (server/Python SDK); vitest (TypeScript SDK) |
 | Deployment | Docker (multi-stage), PyPI, npm |
 
-## Key Features (v0.5.0)
+## Key Features (v0.6.0)
 
 1. **Live trace streaming** — Watch agent think in real-time
 2. **Agent topology graph** — Interactive DAG of tool calls, handoffs
@@ -190,6 +191,6 @@ Your Agent (Python)          AgentLens Server          Browser Dashboard
 
 1. **Functional Completeness:** All F1-F10 requirements met ✅
 2. **Performance:** P50 trace listing <200ms, compare page <300ms ✅
-3. **Code Quality:** 86% coverage, zero critical bugs ✅
-4. **Security:** bcrypt + SHA-256 + JWT HS256 + cross-tenant 404 ✅
-5. **User Satisfaction:** Clear documentation, example projects ✅
+3. **Code Quality:** 100% prod coverage, 231 tests passing ✅
+4. **Security:** bcrypt + SHA-256 + JWT + CORS hardening + SSRF protection ✅
+5. **Documentation:** 18-page Astro + Starlight site, GitHub badges, issue templates ✅

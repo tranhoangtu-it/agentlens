@@ -1,6 +1,6 @@
 # AgentLens Development Roadmap
 
-**Current Version:** v0.5.0 | **Release Date:** Feb 2026 | **Next Milestone:** v0.6.0 (PostgreSQL backend)
+**Current Version:** v0.6.0 | **Release Date:** Mar 2026 | **Status:** Feature-Complete Milestone
 
 ## Phase 1: MVP (COMPLETED ✅)
 
@@ -86,9 +86,48 @@
 - <200ms P50 trace listing
 - <300ms P50 compare page load
 
-## Phase 3: Enterprise Features (Q2 2025)
+## Phase 3: Quality & Infrastructure (COMPLETED ✅)
 
-**Target Date:** April-June 2025 | **Status:** In Planning
+**Target Date:** Mar 2026 | **Status:** Shipped (v0.6.0)
+
+### Completed Features
+
+#### Test Coverage & Quality
+- [x] 231 total tests (100% prod coverage)
+- [x] Integration test suite (63 tests)
+- [x] All frameworks tested (LangChain, CrewAI, AutoGen, LlamaIndex, Google ADK)
+- [x] CI/CD validation passing
+
+#### Security Hardening
+- [x] CORS environment configuration (production lockdown)
+- [x] JWT secret startup warning
+- [x] Webhook SSRF protection (block private IPs)
+- [x] Security badges on GitHub
+
+#### Documentation Site
+- [x] 18-page Astro + Starlight site (agentlens-observe.pages.dev)
+- [x] Automatic deployment via Cloudflare Pages
+- [x] Comprehensive guides (getting started, API, SDK, integrations, troubleshooting)
+- [x] SEO optimization (sitemap, structured data, OpenGraph)
+
+#### GitHub Improvements
+- [x] 6 repository badges (release, Docker, npm, tests, coverage, license)
+- [x] Issue templates (bug, feature, security)
+- [x] Repository topics and metadata
+- [x] Automated release notes
+
+### Success Criteria (Phase 3)
+- [x] 100% production code coverage
+- [x] 231 tests passing, zero flaky tests
+- [x] Security hardening complete
+- [x] Documentation site live and indexed
+- [x] GitHub project fully professionalized
+
+---
+
+## Phase 4: Enterprise Features (Q2 2026)
+
+**Target Date:** April-June 2026 | **Status:** In Planning
 
 ### Features Under Consideration
 
@@ -187,9 +226,9 @@
 - [x] Alerting framework (cost/latency/error_rate, 14 tests)
 - [x] TypeScript SDK v0.1.0 published to npm
 
-## Phase 4: Community & Growth (H2 2025)
+## Phase 5: Community & Growth (H2 2026)
 
-**Target Date:** July-Dec 2025 | **Status:** Roadmap
+**Target Date:** July-Dec 2026 | **Status:** Roadmap
 
 ### Features
 - [ ] Community plugin ecosystem
@@ -253,40 +292,48 @@ Community feedback shapes AgentLens roadmap. To contribute:
 
 2025
 ├── Feb: Phase 2 (v0.2.0) ✅
-├── Apr-Jun: Phase 3 (v0.3.0 — PostgreSQL, OTel)
-├── Jul-Sep: Phase 4 (Community, Ecosystem)
+├── Feb-Feb: Phase 2 continued (v0.3.0 — Replay, OTel) ✅
+├── Feb-Feb: Phase 2 continued (v0.4.0 — TypeScript SDK) ✅
+└── Feb-Feb: Phase 2 continued (v0.5.0 — Auth, Alerting) ✅
+
+2026
+├── Mar: Phase 3 (v0.6.0 — Quality, Infrastructure) ✅
+├── Apr-Jun: Phase 4 (v0.7.0 — PostgreSQL, RBAC)
+├── Jul-Sep: Phase 5 (Community, Ecosystem)
 └── Oct-Dec: v1.0.0 planning
 
 2026+
-├── H1: v1.0.0 (Semantic versioning)
-├── H2: Enterprise features
+├── H1 2026: v1.0.0 (Semantic versioning)
+├── H2 2026: Enterprise features
 └── Future: Cloud offering (optional)
 ```
 
 ## Quarterly Updates
 
-### Q1 2025 (Jan-Mar)
-- **Release:** v0.2.0 (Feb)
-- **Focus:** Production stabilization
-- **Metrics:** >100 GitHub stars, >1K Docker pulls/day
+### Q1 2026 (Jan-Mar)
+- **Release:** v0.6.0 (Mar)
+- **Focus:** Test coverage, security hardening, documentation
+- **Metrics:** 100% prod coverage, 231 tests, 18-page docs site, 6 GitHub badges
+- **Status:** Feature-complete milestone achieved ✅
 
-### Q2 2025 (Apr-Jun)
-- **Release:** v0.3.0 (May-Jun)
-- **Focus:** PostgreSQL backend, OTel ingestion
-- **Metrics:** 250+ GitHub stars, 5K Docker pulls/day
+### Q2 2026 (Apr-Jun)
+- **Release:** v0.7.0 (May-Jun)
+- **Focus:** PostgreSQL backend, RBAC, multi-instance scaling
+- **Metrics:** 500+ GitHub stars, PostgreSQL support, 10K PyPI/month
 
-### Q3 2025 (Jul-Sep)
-- **Release:** v0.3.1+ (patches)
-- **Focus:** Time-travel debugging, alerting
-- **Metrics:** 350+ GitHub stars, 10K PyPI/month
+### Q3 2026 (Jul-Sep)
+- **Release:** v0.8.0+ (patches)
+- **Focus:** Community ecosystem, marketplace, export integrations
+- **Metrics:** 750+ GitHub stars, 50K PyPI/month, plugin ecosystem
 
-### Q4 2025 (Oct-Dec)
+### Q4 2026 (Oct-Dec)
 - **Release:** v1.0.0 (Dec)
-- **Focus:** v1.0 hardening, multi-tenant auth
-- **Metrics:** 500+ GitHub stars, TypeScript SDK
+- **Focus:** Stable API, semantic versioning, enterprise support
+- **Metrics:** 1000+ GitHub stars, production-grade stability
 
 ## Feedback & Questions
 
 - **GitHub Discussions:** github.com/tranhoangtu-it/agentlens-observe/discussions
 - **Roadmap Voting:** github.com/tranhoangtu-it/agentlens-observe/wiki/Roadmap
+- **Documentation:** https://agentlens-observe.pages.dev
 - **Email:** team@agentlens.io

@@ -2,6 +2,74 @@
 
 All notable changes documented. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.0] — 2026-03-01
+
+**Version:** 0.6.0 | **Status:** Production | **Release Type:** Quality & Infrastructure Release
+
+### Added
+
+#### Test Coverage Expansion
+- **231 total tests** (86 server + 52 Python SDK + 30 TypeScript SDK + 63 integration)
+- **100% production code coverage** — all non-test code paths covered
+- **New integration tests** — end-to-end workflows, framework combinations
+- **Comprehensive suite** — pytest + httpx + respx + vitest
+
+#### Security Hardening
+- **CORS Environment Config** — Configurable via `AGENTLENS_CORS_ORIGINS` (lockdown production, open dev)
+- **JWT Secret Warning** — Startup warning if AGENTLENS_JWT_SECRET default used
+- **Webhook SSRF Protection** — Block private IP ranges (10.0.0.0/8, 127.0.0.0/8, 172.16.0.0/12) to prevent SSRF attacks
+- **Security Badges** — Added to GitHub profile
+
+#### Documentation Site
+- **18-page Astro + Starlight documentation** — https://agentlens-observe.pages.dev
+- **Content:** Getting started, API reference, SDK guides, integrations, CLI, troubleshooting, FAQ, contributing
+- **Deployment:** Cloudflare Pages with automatic builds
+- **SEO:** Sitemap, structured data, OpenGraph metadata
+
+#### GitHub Improvements
+- **6 repository badges** — Latest release, Docker pulls, npm downloads, tests passing, coverage, license
+- **Issue templates** — Bug report, feature request, security vulnerability
+- **Repository topics** — ai-agents, observability, llm, open-source
+- **Release notes** — Automated via GitHub release
+
+### Changed
+- Docker image renamed: `tranhoangtu/agentlens:0.5.0` → `tranhoangtu/agentlens-observe:0.6.0`
+- All 0.5.0 references updated to 0.6.0 in docs, Docker, PyPI, npm
+
+### Fixed
+- CORS configuration allows production lockdown (was all-origins only)
+- Webhook security: no external network exposure, SSRF-protected
+- JWT secret auto-generation warning (encourages env config)
+
+### Performance
+- Test suite execution time optimized
+- No performance regressions from coverage improvements
+
+### Upgrade Instructions
+
+**From v0.5.0 to v0.6.0:**
+
+1. **Docker Image Update**
+   ```bash
+   docker pull tranhoangtu/agentlens-observe:0.6.0
+   docker run -p 3000:3000 -e AGENTLENS_JWT_SECRET=your-secret tranhoangtu/agentlens-observe:0.6.0
+   ```
+
+2. **CORS Configuration (Production)**
+   ```bash
+   # Lock down CORS for production
+   docker run -p 3000:3000 \
+     -e AGENTLENS_JWT_SECRET=your-secret \
+     -e AGENTLENS_CORS_ORIGINS="https://yourdomain.com" \
+     tranhoangtu/agentlens-observe:0.6.0
+   ```
+
+3. **SDK Compatibility** — No changes needed (backward compatible)
+
+4. **API Compatibility** — All v0.5.0 endpoints unchanged
+
+---
+
 ## [0.5.0] — 2026-02-28
 
 **Version:** 0.5.0 | **Status:** Production | **Release Type:** Major Feature Release
@@ -391,8 +459,10 @@ All notable changes documented. Format follows [Keep a Changelog](https://keepac
 
 | Version | Status | Support Until |
 |---------|--------|---------------|
-| 0.4.0 | Current | 0.5.0 release |
-| 0.3.0 | Maintained | 6 months |
+| 0.6.0 | Current | 0.7.0 release |
+| 0.5.0 | Maintained | 6 months |
+| 0.4.0 | EOL | 2026-03-01 |
+| 0.3.0 | EOL | 2026-02-28 |
 | 0.2.0 | EOL | 2026-02-28 |
 | 0.1.0 | EOL | 2025-02-28 |
 
@@ -441,7 +511,7 @@ All changes follow this format:
 - **Minor releases:** Quarterly (new features)
 - **Major releases:** Annually (strategic changes)
 
-**Next Planned Release:** v0.5.0
-- PostgreSQL backend
-- Alerting framework
+**Next Planned Release:** v0.7.0 (2026-Q2)
+- PostgreSQL backend (multi-instance scaling)
+- RBAC (role-based access control, org-level scoping)
 - TypeScript SDK framework integrations (LangChain.js, LlamaIndex.js)

@@ -1,4 +1,4 @@
-# AgentLens v0.2.0 — Deployment Guide
+# AgentLens v0.6.0 — Deployment Guide
 
 ## Quick Start
 
@@ -6,10 +6,12 @@
 
 ```bash
 # Pull latest image
-docker pull tranhoangtu/agentlens-observe:0.2.0
+docker pull tranhoangtu/agentlens-observe:0.6.0
 
-# Run container
-docker run -p 3000:3000 tranhoangtu/agentlens-observe:0.2.0
+# Run container with JWT secret
+docker run -p 3000:3000 \
+  -e AGENTLENS_JWT_SECRET=your-secret \
+  tranhoangtu/agentlens-observe:0.6.0
 
 # Access dashboard
 open http://localhost:3000
@@ -46,11 +48,15 @@ python -c "import agentlens; print(agentlens.__version__)"
 ### Environment Variables
 
 ```bash
+# Required (security)
+AGENTLENS_JWT_SECRET="your-secret-key"        # Used for JWT signing (HS256)
+
 # Optional — defaults provided
 SERVER_URL="http://localhost:3000"
-DATABASE_URL="sqlite:///./agentlens.db"     # SQLite only (v0.2.0)
-LOG_LEVEL="INFO"                             # DEBUG, INFO, WARNING, ERROR
-PORT=3000                                    # API + Dashboard port
+DATABASE_URL="sqlite:///./agentlens.db"       # SQLite (v0.6.0), PostgreSQL (v0.7.0+)
+LOG_LEVEL="INFO"                              # DEBUG, INFO, WARNING, ERROR
+PORT=3000                                     # API + Dashboard port
+AGENTLENS_CORS_ORIGINS="*"                    # CORS whitelist (dev: *, prod: lock down)
 ```
 
 ### Docker Deployment
@@ -91,18 +97,27 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "3000"]
 
 **Build & Run:**
 ```bash
-docker build -t agentlens:0.2.0 .
-docker run -p 3000:3000 -v agentlens_db:/app/data agentlens:0.2.0
+docker build -t agentlens:0.6.0 .
+docker run -p 3000:3000 \
+  -e AGENTLENS_JWT_SECRET=your-secret \
+  -v agentlens_db:/app/data \
+  agentlens:0.6.0
 ```
 
 **Data Persistence:**
 ```bash
 # Named volume
 docker volume create agentlens_db
-docker run -p 3000:3000 -v agentlens_db:/app/data agentlens:0.2.0
+docker run -p 3000:3000 \
+  -e AGENTLENS_JWT_SECRET=your-secret \
+  -v agentlens_db:/app/data \
+  tranhoangtu/agentlens-observe:0.6.0
 
 # Or bind mount
-docker run -p 3000:3000 -v ~/agentlens_data:/app/data agentlens:0.2.0
+docker run -p 3000:3000 \
+  -e AGENTLENS_JWT_SECRET=your-secret \
+  -v ~/agentlens_data:/app/data \
+  tranhoangtu/agentlens-observe:0.6.0
 ```
 
 ### Python Deployment (Without Docker)
@@ -161,12 +176,19 @@ spec:
     spec:
       containers:
       - name: agentlens
-        image: tranhoangtu/agentlens-observe:0.2.0
+        image: tranhoangtu/agentlens-observe:0.6.0
         ports:
         - containerPort: 3000
         env:
+        - name: AGENTLENS_JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: agentlens-secret
+              key: jwt-secret
         - name: LOG_LEVEL
           value: "INFO"
+        - name: AGENTLENS_CORS_ORIGINS
+          value: "https://yourdomain.com"
         volumeMounts:
         - name: db
           mountPath: /app/data
@@ -205,7 +227,7 @@ kubectl port-forward svc/agentlens 3000:80
 
 ```bash
 # From PyPI
-pip install agentlens-observe==0.2.0
+pip install agentlens-observe==0.3.0
 
 # From source
 cd sdk
@@ -221,7 +243,10 @@ pip install -e ".[dev]"
 ```python
 import agentlens
 
-agentlens.configure(server_url="http://localhost:3000")
+agentlens.configure(
+    server_url="http://localhost:3000",
+    api_key="al_..."  # Required for v0.5.0+ (multi-tenant auth)
+)
 
 @agentlens.trace(name="MyAgent")
 def run_agent(query: str) -> str:
@@ -235,6 +260,7 @@ def run_agent(query: str) -> str:
 ```python
 agentlens.configure(
     server_url="http://agentlens.example.com",
+    api_key="al_...",      # Required for multi-tenant deployments
     batch_size=100,        # Flush every 100 traces
     batch_interval=10.0,   # Or every 10 seconds
 )
@@ -290,9 +316,11 @@ patch_google_adk()  # Auto-instruments agents
 
 ### Security
 - [ ] HTTPS enabled (reverse proxy with SSL/TLS)
-- [ ] CORS configured for trusted origins only
+- [ ] CORS configured for trusted origins only (AGENTLENS_CORS_ORIGINS env)
+- [ ] JWT secret securely stored (AGENTLENS_JWT_SECRET env, not default)
 - [ ] Remove `/docs` endpoint (Swagger UI) from production
 - [ ] Rate limiting on API endpoints
+- [ ] Webhook SSRF protection enabled (block private IPs)
 - [ ] No debug logs in production (LOG_LEVEL=WARNING)
 - [ ] Database backups enabled
 - [ ] Credentials stored in environment variables (not committed)
@@ -324,7 +352,7 @@ patch_google_adk()  # Auto-instruments agents
 
 ## Scaling Considerations
 
-### Current (v0.2.0 — SQLite)
+### Current (v0.6.0 — SQLite)
 **Limits:**
 - ~10K traces/day
 - ~100K total spans
@@ -336,7 +364,7 @@ patch_google_adk()  # Auto-instruments agents
 - Single process (no horizontal scaling)
 - Limited concurrent connections
 
-### Future (v0.3.0+ — PostgreSQL)
+### Future (v0.7.0+ — PostgreSQL)
 ```python
 # Expected configuration:
 DATABASE_URL="postgresql://user:pass@db:5432/agentlens"

@@ -1,4 +1,4 @@
-# AgentLens v0.5.0 — Codebase Summary
+# AgentLens v0.6.0 — Codebase Summary
 
 **Languages:** Python, TypeScript, JavaScript, HTML, CSS
 
@@ -12,11 +12,18 @@
 | **Compare Page Bundle** | 14KB (lazy) |
 | **Server Tests** | 86 tests |
 | **SDK Tests** | 52 tests (Python) + 30 tests (TypeScript) |
-| **Coverage** | 86% |
+| **Integration Tests** | 63 tests |
+| **Coverage** | 100% (prod code) |
 | **Python Version** | 3.10+ (SDK), 3.11+ (Server) |
 | **Node Version** | 18+ |
 
 ## File-by-File Breakdown
+
+### Documentation Site (`site/`, Astro + Starlight)
+- **18-page documentation site** — https://agentlens-observe.pages.dev
+- **Framework:** Astro 5 + Starlight theme
+- **Content:** Getting started, API docs, SDK guides, integrations, FAQ, troubleshooting
+- **Deployment:** Cloudflare Pages (automatic builds on push)
 
 ### Dashboard (`dashboard/src/`, ~3,500 LOC)
 
@@ -232,7 +239,7 @@ cd sdk && pip install -e ".[dev]"
 # Set JWT secret in production
 docker run -p 3000:3000 \
   -e AGENTLENS_JWT_SECRET=your-secret \
-  tranhoangtu/agentlens-observe:0.5.0
+  tranhoangtu/agentlens-observe:0.6.0
 # First run: admin@agentlens.local / changeme — change immediately
 ```
 
