@@ -53,4 +53,4 @@ patch_crewai()  # Auto-instruments all Crew runs
 
 ## License
 
-MIT — see [LICENSE](https://github.com/tranhoangtu-it/agentlens/blob/main/LICENSE)
+MIT — see [LICENSE](https://github.com/tranhoangtu-it/agentlens-observe/blob/main/LICENSE)

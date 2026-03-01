@@ -32,7 +32,7 @@ docker-compose up
 ### PyPI Installation (SDK Only)
 
 ```bash
-pip install agentlens-observe==0.2.0
+pip install agentlens-observe==0.6.0
 
 # Verify installation
 python -c "import agentlens; print(agentlens.__version__)"
@@ -227,7 +227,7 @@ kubectl port-forward svc/agentlens 3000:80
 
 ```bash
 # From PyPI
-pip install agentlens-observe==0.3.0
+pip install agentlens-observe==0.6.0
 
 # From source
 cd sdk
