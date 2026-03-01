@@ -6,10 +6,10 @@
 
 ```bash
 # Pull latest image
-docker pull tranhoangtu/agentlens:0.2.0
+docker pull tranhoangtu/agentlens-observe:0.2.0
 
 # Run container
-docker run -p 3000:3000 tranhoangtu/agentlens:0.2.0
+docker run -p 3000:3000 tranhoangtu/agentlens-observe:0.2.0
 
 # Access dashboard
 open http://localhost:3000
@@ -161,7 +161,7 @@ spec:
     spec:
       containers:
       - name: agentlens
-        image: tranhoangtu/agentlens:0.2.0
+        image: tranhoangtu/agentlens-observe:0.2.0
         ports:
         - containerPort: 3000
         env:

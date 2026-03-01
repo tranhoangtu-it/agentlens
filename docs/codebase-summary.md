@@ -232,7 +232,7 @@ cd sdk && pip install -e ".[dev]"
 # Set JWT secret in production
 docker run -p 3000:3000 \
   -e AGENTLENS_JWT_SECRET=your-secret \
-  tranhoangtu/agentlens:0.5.0
+  tranhoangtu/agentlens-observe:0.5.0
 # First run: admin@agentlens.local / changeme — change immediately
 ```
 

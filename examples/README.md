@@ -6,7 +6,7 @@ Practical demos showing AgentLens SDK features: tracing, spans, cost tracking, s
 
 1. **Start the AgentLens server:**
    ```bash
-   docker run -p 3000:3000 tranhoangtu/agentlens:0.2.0
+   docker run -p 3000:3000 tranhoangtu/agentlens-observe:0.2.0
    ```
 
 2. **Install dependencies:**

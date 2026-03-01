@@ -58,8 +58,8 @@ All notable changes documented. Format follows [Keep a Changelog](https://keepac
 
 1. **Docker Image Update**
    ```bash
-   docker pull tranhoangtu/agentlens:0.5.0
-   docker run -p 3000:3000 -e AGENTLENS_JWT_SECRET=your-secret tranhoangtu/agentlens:0.5.0
+   docker pull tranhoangtu/agentlens-observe:0.5.0
+   docker run -p 3000:3000 -e AGENTLENS_JWT_SECRET=your-secret tranhoangtu/agentlens-observe:0.5.0
    ```
 
 2. **First Run** — Admin user auto-created (admin@agentlens.local / changeme)
@@ -90,7 +90,7 @@ All notable changes documented. Format follows [Keep a Changelog](https://keepac
 - **Tests:** 30 vitest tests
 
 #### Docker
-- **Image:** `tranhoangtu/agentlens:0.4.0` (also tagged `latest`)
+- **Image:** `tranhoangtu/agentlens-observe:0.4.0` (also tagged `latest`)
 
 ### Upgrade Instructions
 
@@ -98,8 +98,8 @@ All notable changes documented. Format follows [Keep a Changelog](https://keepac
 
 1. **Docker Image Update**
    ```bash
-   docker pull tranhoangtu/agentlens:0.4.0
-   docker run -p 3000:3000 tranhoangtu/agentlens:0.4.0
+   docker pull tranhoangtu/agentlens-observe:0.4.0
+   docker run -p 3000:3000 tranhoangtu/agentlens-observe:0.4.0
    ```
 
 2. **Python SDK** — no change needed (already at v0.3.0)
@@ -300,8 +300,8 @@ All notable changes documented. Format follows [Keep a Changelog](https://keepac
 
 1. **Docker Image Update**
    ```bash
-   docker pull tranhoangtu/agentlens:0.2.0
-   docker run -p 3000:3000 tranhoangtu/agentlens:0.2.0
+   docker pull tranhoangtu/agentlens-observe:0.2.0
+   docker run -p 3000:3000 tranhoangtu/agentlens-observe:0.2.0
    ```
 
 2. **SDK Update**
