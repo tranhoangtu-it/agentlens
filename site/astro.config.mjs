@@ -7,7 +7,7 @@ export default defineConfig({
       title: 'AgentLens',
       description: 'Debug AI agents visually — self-hosted, open-source observability',
       social: [
-        { icon: 'github', label: 'GitHub', href: 'https://github.com/tranhoangtu-it/agentlens' },
+        { icon: 'github', label: 'GitHub', href: 'https://github.com/tranhoangtu-it/agentlens-observe' },
       ],
       sidebar: [
         { label: 'Getting Started', autogenerate: { directory: 'getting-started' } },

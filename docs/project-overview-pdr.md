@@ -21,7 +21,7 @@ AgentLens is a self-hosted, open-source AI agent observability platform. Unlike 
 - **PyPI (Python SDK):** `pip install agentlens-observe==0.3.0`
 - **npm (TypeScript SDK):** `npm install agentlens-observe@0.1.0`
 - **Docker:** `docker run -p 3000:3000 tranhoangtu/agentlens-observe:0.5.0`
-- **GitHub:** `github.com/tranhoangtu-it/agentlens`
+- **GitHub:** `github.com/tranhoangtu-it/agentlens-observe`
 - **License:** MIT
 
 ## Functional Requirements

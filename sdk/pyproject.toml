@@ -37,6 +37,6 @@ all = ["agentlens-observe[langchain,crewai,autogen,llamaindex,google-adk,otel]"]
 packages = ["agentlens"]
 
 [project.urls]
-Homepage = "https://github.com/tranhoangtu-it/agentlens"
-Repository = "https://github.com/tranhoangtu-it/agentlens"
+Homepage = "https://github.com/tranhoangtu-it/agentlens-observe"
+Repository = "https://github.com/tranhoangtu-it/agentlens-observe"
 Issues = "https://github.com/tranhoangtu-it/agentlens/issues"

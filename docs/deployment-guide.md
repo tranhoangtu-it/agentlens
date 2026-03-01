@@ -501,7 +501,7 @@ build: {
 
 ## Support & Resources
 
-- **GitHub Issues:** github.com/tranhoangtu-it/agentlens/issues
+- **GitHub Issues:** github.com/tranhoangtu-it/agentlens-observe/issues
 - **Documentation:** docs/ directory
 - **Discord:** Join community (coming soon)
 - **Email:** support@agentlens.io

@@ -1,6 +1,6 @@
 # agentlens-observe
 
-**Debug AI agents visually** — Python SDK for [AgentLens](https://github.com/tranhoangtu-it/agentlens), the self-hosted AI agent observability platform.
+**Debug AI agents visually** — Python SDK for [AgentLens](https://github.com/tranhoangtu-it/agentlens-observe), the self-hosted AI agent observability platform.
 
 ## Install
 

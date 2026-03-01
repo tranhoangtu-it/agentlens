@@ -287,6 +287,6 @@ Community feedback shapes AgentLens roadmap. To contribute:
 
 ## Feedback & Questions
 
-- **GitHub Discussions:** github.com/tranhoangtu-it/agentlens/discussions
-- **Roadmap Voting:** github.com/tranhoangtu-it/agentlens/wiki/Roadmap
+- **GitHub Discussions:** github.com/tranhoangtu-it/agentlens-observe/discussions
+- **Roadmap Voting:** github.com/tranhoangtu-it/agentlens-observe/wiki/Roadmap
 - **Email:** team@agentlens.io
