@@ -22,12 +22,16 @@ from auth_routes import router as auth_router
 from auth_seed import seed_admin
 from settings_routes import router as settings_router
 from autopsy_routes import router as autopsy_router
+from plugin_loader import load_plugins, notify_trace_created, notify_trace_completed
+from prompt_routes import router as prompt_router
+from eval_routes import router as eval_router
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
     seed_admin()
+    load_plugins(app)
     yield
 
 
@@ -41,6 +45,8 @@ app.include_router(alert_router)
 app.include_router(auth_router)
 app.include_router(settings_router)
 app.include_router(autopsy_router)
+app.include_router(prompt_router)
+app.include_router(eval_router)
 
 _cors_origins_env = os.environ.get(
     "AGENTLENS_CORS_ORIGINS",
@@ -72,10 +78,12 @@ def ingest_trace(body: TraceIn, user: User = Depends(get_current_user)):
     spans_data = [s.model_dump() for s in body.spans]
     trace = create_trace(body.trace_id, body.agent_name, spans_data, user_id=user.id)
     bus.publish("trace_created", {"trace_id": trace.id, "agent_name": trace.agent_name}, user_id=user.id)
+    notify_trace_created(trace.id, trace.agent_name, trace.span_count)
     for s in body.spans:
         bus.publish("span_created", {"trace_id": trace.id, "span": s.model_dump()}, user_id=user.id)
     if trace.status == "completed":
         evaluate_alert_rules(trace.id, trace.agent_name)
+        notify_trace_completed(trace.id, trace.agent_name)
 
     return {"trace_id": trace.id, "status": trace.status}
 
@@ -110,6 +118,7 @@ def ingest_spans(trace_id: str, body: SpansIn, user: User = Depends(get_current_
 
     if trace.status == "completed":
         evaluate_alert_rules(trace.id, trace.agent_name)
+        notify_trace_completed(trace.id, trace.agent_name)
 
     return {"trace_id": trace.id, "status": trace.status, "new_span_count": len(new_spans)}
 
@@ -140,12 +149,14 @@ def ingest_otel_traces(body: dict, user: User = Depends(get_current_user)):
         else:
             trace = create_trace(trace_id, agent_name, spans_data, user_id=user.id)
             bus.publish("trace_created", {"trace_id": trace.id, "agent_name": trace.agent_name}, user_id=user.id)
+            notify_trace_created(trace.id, trace.agent_name, trace.span_count)
 
         for s in spans_data:
             bus.publish("span_created", {"trace_id": trace_id, "span": s}, user_id=user.id)
 
         if trace.status == "completed":
             evaluate_alert_rules(trace.id, trace.agent_name)
+            notify_trace_completed(trace.id, trace.agent_name)
 
     return {"status": "ok", "traces_received": len(groups)}
 

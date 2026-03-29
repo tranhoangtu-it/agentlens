@@ -22,6 +22,8 @@ from models import Trace, Span
 from auth_models import User, ApiKey  # noqa: F401 — register auth tables
 from settings_models import UserSettings  # noqa: F401 — register settings table
 from autopsy_models import AutopsyResult  # noqa: F401 — register autopsy table
+from prompt_models import PromptTemplate, PromptVersion  # noqa: F401 — register prompt tables
+from eval_models import EvalCriteria, EvalRun  # noqa: F401 — register eval tables
 
 
 @pytest.fixture(autouse=True)

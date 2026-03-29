@@ -30,8 +30,22 @@ class SpanExporter(Protocol):
         ...
 
 
-# Global list of registered exporters — populated via Tracer.add_exporter()
+@runtime_checkable
+class SpanProcessor(Protocol):
+    """Protocol for span lifecycle hooks — modify or observe spans in-flight."""
+
+    def on_start(self, span: "SpanData") -> None:
+        """Called when a span starts (pushed to stack). Must not raise."""
+        ...
+
+    def on_end(self, span: "SpanData") -> None:
+        """Called when a span ends (popped from stack). Must not raise."""
+        ...
+
+
+# Global registries — populated via Tracer.add_exporter() / add_processor()
 _exporters: list[SpanExporter] = []
+_processors: list[SpanProcessor] = []
 
 
 def _emit_to_exporters(span: "SpanData") -> None:
@@ -41,6 +55,24 @@ def _emit_to_exporters(span: "SpanData") -> None:
             exporter.export_span(span)
         except Exception as exc:
             logger.debug("AgentLens exporter error (non-fatal): %s", exc)
+
+
+def _notify_processors_start(span: "SpanData") -> None:
+    """Notify processors when a span starts. Never raises."""
+    for proc in _processors:
+        try:
+            proc.on_start(span)
+        except Exception as exc:
+            logger.debug("AgentLens processor on_start error (non-fatal): %s", exc)
+
+
+def _notify_processors_end(span: "SpanData") -> None:
+    """Notify processors when a span ends. Never raises."""
+    for proc in _processors:
+        try:
+            proc.on_end(span)
+        except Exception as exc:
+            logger.debug("AgentLens processor on_end error (non-fatal): %s", exc)
 
 
 @dataclass
@@ -85,10 +117,13 @@ class ActiveTrace:
     def push_span(self, span: SpanData):
         self.spans.append(span)
         self._span_stack.append(span.span_id)
+        _notify_processors_start(span)
 
-    def pop_span(self):
+    def pop_span(self, span: Optional[SpanData] = None):
         if self._span_stack:
             self._span_stack.pop()
+        if span:
+            _notify_processors_end(span)
 
     def flush_span(self, span: SpanData) -> None:
         """Send a single completed span immediately (streaming mode only)."""
@@ -146,7 +181,7 @@ class SpanContext:
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self._span.end_ms = _now_ms()
-        self._active.pop_span()
+        self._active.pop_span(self._span)
         # In streaming mode, push completed span to server immediately
         self._active.flush_span(self._span)
         return False  # don't suppress exceptions
@@ -211,6 +246,17 @@ class Tracer:
                 flush_interval=batch_flush_interval,
             )
 
+    def add_processor(self, processor: SpanProcessor) -> None:
+        """Register a span processor for lifecycle hooks.
+
+        Processors receive on_start/on_end calls for every span,
+        allowing observation or modification of spans in-flight.
+
+        Args:
+            processor: Any object implementing the SpanProcessor protocol.
+        """
+        _processors.append(processor)
+
     def add_exporter(self, exporter: SpanExporter) -> None:
         """Register an optional span exporter (e.g. OTel).
 
@@ -264,7 +310,7 @@ class Tracer:
             raise
         finally:
             root.end_ms = _now_ms()
-            active.pop_span()
+            active.pop_span(root)
             active.flush()
             _current_trace.reset(token)
 
@@ -289,7 +335,7 @@ class Tracer:
             raise
         finally:
             root.end_ms = _now_ms()
-            active.pop_span()
+            active.pop_span(root)
             active.flush()
             _current_trace.reset(token)
 

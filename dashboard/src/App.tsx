@@ -8,12 +8,14 @@ import { TraceReplayPage } from './pages/trace-replay-page'
 import { LoginPage } from './pages/login-page'
 import { ApiKeysPage } from './pages/api-keys-page'
 import { cn } from './lib/utils'
-import { Activity, Bell, Settings, Cpu, Key, LogOut, Sliders } from 'lucide-react'
+import { Activity, Bell, Settings, Cpu, Key, LogOut, Sliders, FileText, ClipboardCheck } from 'lucide-react'
 import { AlertsListPage } from './pages/alerts-list-page'
 import { AlertRulesPage } from './pages/alert-rules-page'
 import { fetchAlertsSummary } from './lib/alert-api-client'
 import { AuthProvider, useAuth } from './lib/auth-context'
 import { SettingsPage } from './pages/settings-page'
+import { PromptRegistryPage } from './pages/prompt-registry-page'
+import { EvalDashboardPage } from './pages/eval-dashboard-page'
 
 // Lazy load compare page — rarely used, large dependency (diff utils)
 const TraceComparePage = lazy(() =>
@@ -29,6 +31,8 @@ type Route =
   | { name: 'alert-rules' }
   | { name: 'api-keys' }
   | { name: 'settings' }
+  | { name: 'prompts' }
+  | { name: 'evals' }
   | { name: 'login' }
 
 function parseHash(hash: string): Route {
@@ -38,6 +42,8 @@ function parseHash(hash: string): Route {
   if (path === 'alert-rules') return { name: 'alert-rules' }
   if (path === 'api-keys') return { name: 'api-keys' }
   if (path === 'settings') return { name: 'settings' }
+  if (path === 'prompts') return { name: 'prompts' }
+  if (path === 'evals') return { name: 'evals' }
   const compareMatch = path.match(/^compare\/([^/]+)\/(.+)$/)
   if (compareMatch) return { name: 'compare', leftId: compareMatch[1], rightId: compareMatch[2] }
   const replayMatch = path.match(/^traces\/([^/]+)\/replay$/)
@@ -170,6 +176,18 @@ function AuthenticatedApp() {
             onClick={() => setHash('api-keys')}
           />
           <NavItem
+            icon={FileText}
+            label="Prompts"
+            active={route.name === 'prompts'}
+            onClick={() => setHash('prompts')}
+          />
+          <NavItem
+            icon={ClipboardCheck}
+            label="Evals"
+            active={route.name === 'evals'}
+            onClick={() => setHash('evals')}
+          />
+          <NavItem
             icon={Sliders}
             label="Settings"
             active={route.name === 'settings'}
@@ -251,6 +269,12 @@ function AuthenticatedApp() {
           {route.name === 'settings' && (
             <span className="text-foreground font-medium">Settings</span>
           )}
+          {route.name === 'prompts' && (
+            <span className="text-foreground font-medium">Prompts</span>
+          )}
+          {route.name === 'evals' && (
+            <span className="text-foreground font-medium">Evaluations</span>
+          )}
         </header>
 
         {/* Page content */}
@@ -284,6 +308,12 @@ function AuthenticatedApp() {
           )}
           {route.name === 'settings' && (
             <SettingsPage />
+          )}
+          {route.name === 'prompts' && (
+            <PromptRegistryPage />
+          )}
+          {route.name === 'evals' && (
+            <EvalDashboardPage />
           )}
         </main>
       </div>
