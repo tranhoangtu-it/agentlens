@@ -186,7 +186,7 @@ Your Agent (Python)          AgentLens Server          Browser Dashboard
 | Testing | pytest, httpx, respx (server/Python SDK); vitest (TypeScript SDK) |
 | Deployment | Docker (multi-stage), PyPI, npm |
 
-## Key Features (v0.8.0)
+## Key Features (v0.9.0)
 
 1. **Live trace streaming** — Watch agent think in real-time
 2. **Agent topology graph** — Interactive DAG of tool calls, handoffs
@@ -207,7 +207,10 @@ Your Agent (Python)          AgentLens Server          Browser Dashboard
 17. **Prompt Versioning** — Manage prompt templates with version history and diffs
 18. **LLM-as-Judge Evaluation** — Assess agent outputs with criteria-based LLM evaluation (numeric/binary scoring)
 19. **Span Processors** — SDK hooks for in-flight span observation/modification (on_start/on_end)
-20. **Self-hosted** — Your data, your machine
+20. **Replay Sandbox** — Edit span inputs/outputs, test "what-if" scenarios without re-running agents
+21. **Go CLI Tool** — Lightweight command-line interface: traces list/show/tail/diff, push via stdin
+22. **VS Code Extension** — IDE integration: sidebar TreeView, WebView detail panel, status bar indicator
+23. **Self-hosted** — Your data, your machine
 
 ## Success Metrics
 

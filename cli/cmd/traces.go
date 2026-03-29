@@ -144,7 +144,7 @@ func runTracesShow(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	resp, err := client.Get("/api/traces/"+traceID, nil)
+	resp, err := client.Get("/api/traces/"+url.PathEscape(traceID), nil)
 	if err != nil {
 		return err
 	}

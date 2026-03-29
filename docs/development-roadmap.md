@@ -211,9 +211,52 @@
 
 ---
 
-## Phase 6: Enterprise Features (Q2 2026)
+## Phase 6: CLI & IDE Integration (Q2 2026)
 
-**Target Date:** April-June 2026 | **Status:** Planned
+**Target Date:** April-June 2026 | **Status:** In Progress (v0.9.0)
+
+### Replay Sandbox
+- [x] `ReplaySession` data model (trace_id, user_id, edited_spans)
+- [x] Replay storage CRUD (create, get, list, update, delete)
+- [x] Replay API endpoints (POST/GET/PUT/DELETE /api/replay-sessions)
+- [x] Dashboard Sandbox mode toggle on trace detail
+- [x] Span JSON editor (input/output)
+- [x] Replay timeline visualization with edits highlighted
+- [x] Session management UI (create, load, delete)
+
+### Go CLI Tool
+- [x] Project structure (main.go, commands/, api/, config/)
+- [x] Build configuration (Makefile, go.mod)
+- [x] Config management (~/.agentlens/config.json)
+- [x] Commands: traces list/show/tail/diff, push, config set/show
+- [x] Output formatting (JSON, table, tree, unified diff)
+- [x] Stdin pipe support for `push` command
+- [x] SSE streaming for `traces tail`
+- [x] Help and version commands
+
+### VS Code Extension
+- [x] Extension scaffold (TypeScript + esbuild)
+- [x] Sidebar TreeView provider (trace list by agent)
+- [x] WebView detail panel (topology + span inspector)
+- [x] Status bar indicator (Connected/Disconnected)
+- [x] Configuration settings (agentlens.endpoint, agentlens.apiKey)
+- [x] Context menu commands (open, compare, delete, export)
+- [x] Package.json manifest (icons, activation events)
+- [x] VSIX publishing configuration
+
+### Success Criteria (Phase 6)
+- [x] Replay sessions fully functional, tested
+- [x] Go CLI builds and distributes across platforms
+- [x] VS Code extension published to marketplace
+- [x] All three tools documented
+- [x] Integration tests passing
+- [x] CLI + server E2E tested
+
+---
+
+## Phase 7: Enterprise Features (Q2-Q3 2026)
+
+**Target Date:** May-September 2026 | **Status:** Planned
 
 ### Features Under Consideration
 
@@ -404,9 +447,10 @@ Community feedback shapes AgentLens roadmap. To contribute:
   - Metrics: 12+ tests per module, plugin auto-discovery, prompt diffs, eval dashboard ✅
 
 ### Q2 2026 (Apr-Jun)
-- **Release:** v0.9.0 (May-Jun)
-- **Focus:** PostgreSQL backend, RBAC, multi-instance scaling
-- **Metrics:** 500+ GitHub stars, PostgreSQL support, 10K PyPI/month
+- **Release v0.9.0 (Apr-May)** — Replay Sandbox, Go CLI, VS Code Extension
+  - Metrics: Replay sessions functional, CLI distributable, VS Code published
+- **Release v1.0.0 beta (Jun)** — PostgreSQL backend, RBAC, multi-instance scaling
+  - Metrics: 500+ GitHub stars, PostgreSQL support, 10K PyPI/month
 
 ### Q3 2026 (Jul-Sep)
 - **Release:** v1.0.0 (patches)

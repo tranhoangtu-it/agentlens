@@ -37,5 +37,6 @@ export async function fetchReplaySessions(traceId: string): Promise<{ sessions: 
 }
 
 export async function deleteReplaySession(id: string): Promise<void> {
-  await fetchWithAuth(`${BASE}/replay-sessions/${id}`, { method: 'DELETE' })
+  const res = await fetchWithAuth(`${BASE}/replay-sessions/${id}`, { method: 'DELETE' })
+  if (!res.ok && res.status !== 404) throw new Error(`Delete failed: ${res.status}`)
 }

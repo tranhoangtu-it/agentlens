@@ -30,6 +30,11 @@ def _session_to_out(rs) -> ReplaySessionOut:
 @router.post("/replay-sessions", status_code=201)
 def create_session_endpoint(body: ReplaySessionIn, user: User = Depends(get_current_user)):
     """Create a replay session with modified span inputs."""
+    # Limit modification size to prevent storage abuse (64KB)
+    import json as _json
+    if len(_json.dumps(body.modifications)) > 65536:
+        raise HTTPException(422, "Modifications too large (max 64KB)")
+
     # Verify trace exists and belongs to user
     trace_data = get_trace(body.trace_id, user_id=user.id)
     if not trace_data:

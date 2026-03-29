@@ -82,8 +82,9 @@ export function TraceReplayPage({ traceId, onBack }: Props) {
       })
       setSaved(true)
       setTimeout(() => setSaved(false), 3000)
-    } catch { /* ignore */ }
-    finally { setSaving(false) }
+    } catch (e: any) {
+      setError(e.message || 'Failed to save replay session')
+    } finally { setSaving(false) }
   }, [traceId, trace, modifications])
 
   const modCount = Object.keys(modifications).length

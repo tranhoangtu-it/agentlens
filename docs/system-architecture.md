@@ -1,4 +1,4 @@
-# AgentLens v0.8.0 — System Architecture
+# AgentLens v0.9.0 — System Architecture
 
 ## High-Level Architecture
 
@@ -515,6 +515,77 @@ GET /api/traces/compare?left={id1}&right={id2}
 - Dashboard: Eval Dashboard with criteria management and score visualization
 - Supports both user-provided and built-in LLM providers
 
+### Replay Sandbox (`server/replay_*.py`, `dashboard/src/components/replay-*`)
+
+**Models** (`server/replay_models.py`)
+- `ReplaySession` — Edited span snapshots tied to original trace
+  - Fields: id, trace_id, user_id, name, base_span_id, edited_spans (JSON), timestamps
+  - Indexes: (trace_id, user_id), (user_id, created_at)
+
+**Storage** (`server/replay_storage.py`)
+- `create_replay_session(trace_id, user_id, name)` — Create session
+- `get_replay_session(session_id, user_id)` — Fetch with ownership
+- `list_replay_sessions(trace_id, user_id)` — List all for trace
+- `update_replay_session_edits(session_id, edited_spans)` — Update span edits
+- `delete_replay_session(session_id, user_id)` — Delete session
+
+**Routes** (`server/replay_routes.py`)
+- `POST /api/replay-sessions` — Create session
+- `GET /api/traces/{id}/replay-sessions` — List by trace
+- `GET /api/replay-sessions/{id}` — Fetch session
+- `PUT /api/replay-sessions/{id}` — Update edits
+- `DELETE /api/replay-sessions/{id}` — Delete session
+
+**Dashboard Components**
+- `replay-sandbox-controls.tsx` — Mode toggle (View/Sandbox), save/load buttons
+- `replay-span-editor.tsx` — JSON editor for input/output editing
+- `replay-timeline-view.tsx` — Visual timeline with edited spans highlighted
+- `replay-session-list.tsx` — Saved sessions management UI
+
+### Go CLI Tool (`cli/`)
+
+**Structure**
+- `main.go` — Entry point, command dispatch
+- `commands/{traces,config,push}.go` — Command implementations
+- `api/client.go` — HTTP client wrapper
+- `config/config.go` — Config file management (~/.agentlens/config.json)
+
+**Commands**
+- `traces list` — List traces (filters: status, agent, limit)
+- `traces show <id>` — Display trace details (formats: json, table, tree)
+- `traces tail` — Stream traces in real-time (SSE)
+- `traces diff` — Compare two traces (unified diff output)
+- `push` — Read trace JSON from stdin, POST to server
+- `config set/show` — Manage config file
+
+**Technology**
+- Framework: Cobra (CLI framework)
+- Config: viper (file management)
+- Output: tablewriter (ASCII tables), stdlib json
+- Streaming: SSE listener for tail command
+
+### VS Code Extension (`vscode-extension/`)
+
+**Architecture**
+- `extension.ts` — Entry point, command registration
+- `sidebar-provider.ts` — TreeView data provider (trace list)
+- `webview-provider.ts` — WebView for trace detail inspection
+- `status-bar.ts` — Status indicator (Connected/Disconnected)
+- `api-client.ts` — API call wrapper
+
+**Features**
+- **Sidebar TreeView** — List recent traces grouped by agent, expandable
+- **Detail WebView** — Show trace topology, span details, JSON viewer
+- **Status Bar** — Connection status indicator
+- **Context Menu** — Open trace, open in browser, compare, delete, export
+- **Configuration** — Settings: agentlens.endpoint, agentlens.apiKey
+
+**Technology**
+- Extension API: Visual Studio Code Extension API
+- UI: WebView (HTML/CSS/JavaScript)
+- Graph: React Flow component (reused from dashboard)
+- Build: TypeScript + esbuild, published as VSIX
+
 ## Performance Optimizations
 
 | Layer | Optimization |
@@ -524,6 +595,9 @@ GET /api/traces/compare?left={id1}&right={id2}
 | **React** | Code splitting (4 chunks), React.memo, lazy-load compare page |
 | **Table** | @tanstack/react-virtual (10K rows virtualized) |
 | **Transport** | Batch queue, fire-and-forget (non-blocking SDK) |
+| **Replay Sessions** | JSON blobs, no re-execution cost |
+| **CLI Streaming** | SSE for `traces tail`, efficient polling |
+| **VS Code Sidebar** | 5s poll interval (configurable), cached responses |
 
 ## Deployment Architecture
 
