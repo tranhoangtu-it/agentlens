@@ -106,11 +106,11 @@ def _call_anthropic(api_key: str, model: str, system: str, user: str) -> str:
 
 
 def _call_gemini(api_key: str, model: str, system: str, user: str) -> str:
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
     with httpx.Client(timeout=_TIMEOUT) as client:
         res = client.post(
             url,
-            headers={"Content-Type": "application/json"},
+            headers={"Content-Type": "application/json", "x-goog-api-key": api_key},
             json={
                 "system_instruction": {"parts": [{"text": system}]},
                 "contents": [{"parts": [{"text": user}]}],

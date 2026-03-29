@@ -40,23 +40,26 @@ def _patch_call_tool(ClientSession):
         start = _now_ms()
         result = await original(self, name, arguments, **kwargs)
         if active:
-            span = SpanData(
-                span_id=str(uuid.uuid4()),
-                parent_id=active.current_span_id(),
-                name=f"mcp:{name}",
-                type="mcp.tool_call",
-                start_ms=start,
-                end_ms=_now_ms(),
-                input=str(arguments)[:1024] if arguments else None,
-                output=str(result)[:2048],
-                metadata={
-                    "mcp_server": _get_server_name(self),
-                    "tool_name": name,
-                    "arguments": arguments,
-                },
-            )
-            active.spans.append(span)
-            active.flush_span(span)
+            try:
+                span = SpanData(
+                    span_id=str(uuid.uuid4()),
+                    parent_id=active.current_span_id(),
+                    name=f"mcp:{name}",
+                    type="mcp.tool_call",
+                    start_ms=start,
+                    end_ms=_now_ms(),
+                    input=str(arguments)[:1024] if arguments else None,
+                    output=str(result)[:2048],
+                    metadata={
+                        "mcp_server": _get_server_name(self),
+                        "tool_name": name,
+                        "arguments": arguments,
+                    },
+                )
+                active.spans.append(span)
+                active.flush_span(span)
+            except Exception:
+                logger.debug("Failed to record MCP tool_call span", exc_info=True)
         return result
 
     ClientSession.call_tool = patched
@@ -70,22 +73,25 @@ def _patch_read_resource(ClientSession):
         start = _now_ms()
         result = await original(self, uri, **kwargs)
         if active:
-            span = SpanData(
-                span_id=str(uuid.uuid4()),
-                parent_id=active.current_span_id(),
-                name=f"mcp:read:{uri}",
-                type="mcp.resource_read",
-                start_ms=start,
-                end_ms=_now_ms(),
-                input=str(uri)[:1024],
-                output=str(result)[:2048],
-                metadata={
-                    "mcp_server": _get_server_name(self),
-                    "resource_uri": str(uri),
-                },
-            )
-            active.spans.append(span)
-            active.flush_span(span)
+            try:
+                span = SpanData(
+                    span_id=str(uuid.uuid4()),
+                    parent_id=active.current_span_id(),
+                    name=f"mcp:read:{uri}",
+                    type="mcp.resource_read",
+                    start_ms=start,
+                    end_ms=_now_ms(),
+                    input=str(uri)[:1024],
+                    output=str(result)[:2048],
+                    metadata={
+                        "mcp_server": _get_server_name(self),
+                        "resource_uri": str(uri),
+                    },
+                )
+                active.spans.append(span)
+                active.flush_span(span)
+            except Exception:
+                logger.debug("Failed to record MCP resource_read span", exc_info=True)
         return result
 
     ClientSession.read_resource = patched
@@ -99,23 +105,26 @@ def _patch_get_prompt(ClientSession):
         start = _now_ms()
         result = await original(self, name, arguments, **kwargs)
         if active:
-            span = SpanData(
-                span_id=str(uuid.uuid4()),
-                parent_id=active.current_span_id(),
-                name=f"mcp:prompt:{name}",
-                type="mcp.prompt_get",
-                start_ms=start,
-                end_ms=_now_ms(),
-                input=str(arguments)[:1024] if arguments else None,
-                output=str(result)[:2048],
-                metadata={
-                    "mcp_server": _get_server_name(self),
-                    "prompt_name": name,
-                    "arguments": arguments,
-                },
-            )
-            active.spans.append(span)
-            active.flush_span(span)
+            try:
+                span = SpanData(
+                    span_id=str(uuid.uuid4()),
+                    parent_id=active.current_span_id(),
+                    name=f"mcp:prompt:{name}",
+                    type="mcp.prompt_get",
+                    start_ms=start,
+                    end_ms=_now_ms(),
+                    input=str(arguments)[:1024] if arguments else None,
+                    output=str(result)[:2048],
+                    metadata={
+                        "mcp_server": _get_server_name(self),
+                        "prompt_name": name,
+                        "arguments": arguments,
+                    },
+                )
+                active.spans.append(span)
+                active.flush_span(span)
+            except Exception:
+                logger.debug("Failed to record MCP prompt_get span", exc_info=True)
         return result
 
     ClientSession.get_prompt = patched

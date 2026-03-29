@@ -9,18 +9,20 @@ from cryptography.fernet import Fernet, InvalidToken
 
 logger = logging.getLogger(__name__)
 
-_jwt_secret = os.environ.get("AGENTLENS_JWT_SECRET", "")
 
-if not _jwt_secret:
-    logger.warning(
-        "AGENTLENS_JWT_SECRET is not set — encrypted values will be lost on restart. "
-        "Set AGENTLENS_JWT_SECRET in production to persist stored API keys."
-    )
+def _get_secret() -> str:
+    """Read JWT secret from env. Returns empty string if not set."""
+    return os.environ.get("AGENTLENS_JWT_SECRET", "")
 
 
 def _get_fernet() -> Fernet:
-    """Derive a Fernet key from the JWT secret."""
-    secret = _jwt_secret or "agentlens-dev-fallback-key"
+    """Derive a Fernet key from the JWT secret. Raises if no secret is set."""
+    secret = _get_secret()
+    if not secret:
+        raise RuntimeError(
+            "AGENTLENS_JWT_SECRET must be set to store encrypted API keys. "
+            "Set this environment variable and restart the server."
+        )
     key = base64.urlsafe_b64encode(hashlib.sha256(secret.encode()).digest())
     return Fernet(key)
 

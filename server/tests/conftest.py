@@ -4,6 +4,9 @@ import os
 import tempfile
 from pathlib import Path
 
+# Ensure encryption works in tests
+os.environ.setdefault("AGENTLENS_JWT_SECRET", "test-secret-for-ci")
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import event, text

@@ -72,7 +72,14 @@ def trigger_autopsy(
     try:
         analysis = analyze_trace(trace, spans, provider, api_key, model)
     except LLMProviderError as e:
-        raise HTTPException(status_code=502, detail=f"LLM analysis failed: {e}")
+        logger.error("Autopsy LLM call failed: %s", e)
+        raise HTTPException(status_code=502, detail="LLM analysis failed. Check your API key and model in Settings.")
+
+    # Filter affected_span_ids to only include real span IDs from this trace
+    valid_span_ids = {s.id for s in spans}
+    analysis["affected_span_ids"] = [
+        sid for sid in analysis.get("affected_span_ids", []) if sid in valid_span_ids
+    ]
 
     # Store result
     result = create_autopsy({
