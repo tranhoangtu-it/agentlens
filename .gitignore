@@ -14,3 +14,5 @@ build/
 *.db-wal
 *.db-shm
 htmlcov/
+cli/agentlens.exe
+vscode-extension/out/

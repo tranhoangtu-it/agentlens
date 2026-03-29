@@ -25,6 +25,7 @@ from autopsy_routes import router as autopsy_router
 from plugin_loader import load_plugins, notify_trace_created, notify_trace_completed
 from prompt_routes import router as prompt_router
 from eval_routes import router as eval_router
+from replay_routes import router as replay_router
 
 
 @asynccontextmanager
@@ -47,6 +48,7 @@ app.include_router(settings_router)
 app.include_router(autopsy_router)
 app.include_router(prompt_router)
 app.include_router(eval_router)
+app.include_router(replay_router)
 
 _cors_origins_env = os.environ.get(
     "AGENTLENS_CORS_ORIGINS",

@@ -24,6 +24,7 @@ from settings_models import UserSettings  # noqa: F401 — register settings tab
 from autopsy_models import AutopsyResult  # noqa: F401 — register autopsy table
 from prompt_models import PromptTemplate, PromptVersion  # noqa: F401 — register prompt tables
 from eval_models import EvalCriteria, EvalRun  # noqa: F401 — register eval tables
+from replay_models import ReplaySession  # noqa: F401 — register replay table
 
 
 @pytest.fixture(autouse=True)

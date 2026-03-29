@@ -1,0 +1,81 @@
+{
+  "name": "agentlens",
+  "displayName": "AgentLens",
+  "description": "AI Agent Observability — trace tool calls, inspect decisions",
+  "version": "0.1.0",
+  "publisher": "agentlens",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Debuggers",
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "agentlens",
+          "title": "AgentLens",
+          "icon": "$(telescope)"
+        }
+      ]
+    },
+    "views": {
+      "agentlens": [
+        {
+          "id": "agentlens.traces",
+          "name": "Traces"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "AgentLens",
+      "properties": {
+        "agentlens.endpoint": {
+          "type": "string",
+          "default": "http://localhost:8000",
+          "description": "AgentLens server URL"
+        },
+        "agentlens.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for authentication"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "agentlens.refreshTraces",
+        "title": "AgentLens: Refresh Traces",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "agentlens.openTrace",
+        "title": "AgentLens: Open Trace Detail"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "agentlens.refreshTraces",
+          "when": "view == agentlens.traces",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.4.0"
+  }
+}

@@ -2,17 +2,18 @@
 // Route: #/traces/:id/replay
 // Client-side only: fetches trace once, replays spans via cursor offset
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useCallback } from 'react'
 import { fetchTrace } from '../lib/api-client'
 import type { Trace, Span } from '../lib/api-client'
 import { useReplayControls } from '../lib/use-replay-controls'
 import { TraceTopologyGraph } from '../components/trace-topology-graph'
-import { SpanDetailPanel } from '../components/span-detail-panel'
 import { CostSummaryChart } from '../components/cost-summary-chart'
+import { ReplaySandboxPanel } from '../components/replay-sandbox-panel'
 import { ReplayTransportControls } from '../components/replay-transport-controls'
 import { ReplayTimelineScrubber } from '../components/replay-timeline-scrubber'
 import { Skeleton } from '../components/ui/skeleton'
-import { ArrowLeft } from 'lucide-react'
+import { ArrowLeft, FlaskConical, Save } from 'lucide-react'
+import { createReplaySession } from '../lib/replay-api-client'
 
 interface Props {
   traceId: string
@@ -51,6 +52,41 @@ export function TraceReplayPage({ traceId, onBack }: Props) {
     const maxEnd = Math.max(...spans.map((s) => s.end_ms))
     return maxEnd - traceStart
   }, [trace, spans, traceStart])
+
+  const [sandboxMode, setSandboxMode] = useState(false)
+  const [modifications, setModifications] = useState<Record<string, { input?: string }>>({})
+  const [selectedSpan, setSelectedSpan] = useState<Span | null>(null)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  const modifySpan = useCallback((spanId: string, input: string) => {
+    setModifications((prev) => ({ ...prev, [spanId]: { input } }))
+  }, [])
+
+  const resetSpan = useCallback((spanId: string) => {
+    setModifications((prev) => {
+      const next = { ...prev }
+      delete next[spanId]
+      return next
+    })
+  }, [])
+
+  const handleSaveSession = useCallback(async () => {
+    if (!trace || Object.keys(modifications).length === 0) return
+    setSaving(true)
+    try {
+      await createReplaySession({
+        trace_id: traceId,
+        name: `Sandbox ${new Date().toLocaleTimeString()}`,
+        modifications,
+      })
+      setSaved(true)
+      setTimeout(() => setSaved(false), 3000)
+    } catch { /* ignore */ }
+    finally { setSaving(false) }
+  }, [traceId, trace, modifications])
+
+  const modCount = Object.keys(modifications).length
 
   const { cursor, isPlaying, speed, play, pause, seek, stepForward, stepBack, setSpeed } =
     useReplayControls(spans, duration)
@@ -106,9 +142,32 @@ export function TraceReplayPage({ traceId, onBack }: Props) {
         <span className="text-xs text-muted-foreground font-mono hidden sm:block truncate max-w-xs">
           {traceId}
         </span>
-        <span className="text-xs text-muted-foreground ml-auto shrink-0">
-          {filteredSpans.length}/{spans.length} spans
-        </span>
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          <button
+            onClick={() => setSandboxMode(!sandboxMode)}
+            className={`flex items-center gap-1.5 text-xs px-2.5 py-1 rounded border transition-colors ${
+              sandboxMode
+                ? 'border-primary/40 text-primary bg-primary/10'
+                : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/40'
+            }`}
+          >
+            <FlaskConical size={11} />
+            Sandbox {modCount > 0 && `(${modCount})`}
+          </button>
+          {modCount > 0 && (
+            <button
+              onClick={handleSaveSession}
+              disabled={saving}
+              className="flex items-center gap-1.5 text-xs px-2.5 py-1 rounded border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors disabled:opacity-50"
+            >
+              <Save size={11} />
+              {saved ? 'Saved!' : saving ? 'Saving...' : 'Save'}
+            </button>
+          )}
+          <span className="text-xs text-muted-foreground">
+            {filteredSpans.length}/{spans.length} spans
+          </span>
+        </div>
       </div>
 
       {/* Main: graph + side panel */}
@@ -116,15 +175,18 @@ export function TraceReplayPage({ traceId, onBack }: Props) {
         <div className="flex-1 overflow-hidden">
           <TraceTopologyGraph
             spans={filteredSpans}
-            selectedSpanId={activeSpan?.id ?? null}
-            onSelectSpan={() => {}}   // auto-selection only in replay mode
+            selectedSpanId={selectedSpan?.id ?? activeSpan?.id ?? null}
+            onSelectSpan={sandboxMode ? setSelectedSpan : () => {}}
             replayRunningIds={replayRunningIds}
           />
         </div>
-        {activeSpan && (
-          <SpanDetailPanel
-            span={activeSpan}
-            onClose={() => {}}   // no manual close in replay mode
+        {sandboxMode && (selectedSpan || activeSpan) && (
+          <ReplaySandboxPanel
+            span={selectedSpan || activeSpan!}
+            modification={modifications[(selectedSpan || activeSpan)!.id] || null}
+            onModify={modifySpan}
+            onReset={resetSpan}
+            onClose={() => setSelectedSpan(null)}
           />
         )}
       </div>
