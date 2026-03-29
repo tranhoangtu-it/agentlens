@@ -129,6 +129,10 @@
 
 **Target Date:** March 2026 | **Status:** Shipped (v0.7.0)
 
+## Phase 5: Plugin System, Prompt Versioning, Evaluation (Q1 2026)
+
+**Target Date:** March 2026 | **Status:** Shipped (v0.8.0)
+
 ### Completed Features
 
 #### 1. User LLM Settings ✅
@@ -163,11 +167,53 @@
 - [x] MCP integration available for Python + TypeScript
 - [x] Optional dependency architecture (not required for core)
 
+### Completed Features (Phase 5)
+
+#### 1. Plugin System ✅
+- [x] `ServerPlugin` protocol with lifecycle hooks
+- [x] Auto-discovery from `server/plugins/` directory
+- [x] `on_trace_created()` and `on_trace_completed()` hooks
+- [x] `register_routes()` for custom API endpoints
+- [x] Error handling (plugin exceptions don't crash server)
+
+#### 2. Prompt Versioning ✅
+- [x] `PromptTemplate` and `PromptVersion` data models
+- [x] CRUD API: POST/GET /api/prompts, POST /api/prompts/{id}/versions
+- [x] Unified diff endpoint: GET /api/prompts/{id}/diff
+- [x] Version auto-increment tracking
+- [x] Variables and metadata per version
+- [x] Dashboard Prompt Registry page
+
+#### 3. LLM-as-Judge Evaluation ✅
+- [x] `EvalCriteria` with numeric (1-5) and binary (pass/fail) scoring
+- [x] `EvalRun` to store judge results
+- [x] CRUD endpoints: POST/GET/PUT/DELETE /api/eval/criteria
+- [x] Evaluation runner: POST /api/eval/run for batch evaluation
+- [x] Score queries: GET /api/eval/scores and /api/eval/runs
+- [x] Auto-eval on trace completion (opt-in)
+- [x] Integration with user's configured LLM provider
+- [x] Dashboard Eval Dashboard page
+
+#### 4. SDK Span Processors ✅
+- [x] `SpanProcessor` protocol with `on_start()` / `on_end()` hooks
+- [x] `Tracer.add_processor()` API
+- [x] Processor registration and invocation
+- [x] Error handling (processor exceptions logged, don't block)
+
+### Success Criteria (Phase 5)
+- [x] Plugin system loadable and extensible
+- [x] Prompt versioning with full CRUD + diff
+- [x] LLM-as-Judge evaluation (numeric + binary scoring)
+- [x] Auto-eval capability for continuous assessment
+- [x] SDK span processors for in-flight observation
+- [x] All features tested (12+ tests per module)
+- [x] Dashboard pages for prompts and evaluation
+
 ---
 
-## Phase 5: Enterprise Features (Q2 2026)
+## Phase 6: Enterprise Features (Q2 2026)
 
-**Target Date:** April-June 2026 | **Status:** In Planning
+**Target Date:** April-June 2026 | **Status:** Planned
 
 ### Features Under Consideration
 
@@ -258,15 +304,12 @@
   - LLM agent libraries in JS
   - Full-stack observability
 
-### Success Criteria (Phase 3)
+### Success Criteria (Phase 6)
 - [ ] PostgreSQL backend proven on 1M+ spans
-- [x] OTel ingestion (OTLP HTTP JSON, 8 tests passing)
-- [x] Time-travel replay usable (UI complete)
-- [x] Multi-tenant auth production-ready (JWT + API key, 27 tests)
-- [x] Alerting framework (cost/latency/error_rate, 14 tests)
-- [x] TypeScript SDK v0.1.0 published to npm
+- [ ] RBAC with org-level scoping
+- [ ] Multi-instance deployments with load balancing
 
-## Phase 5: Community & Growth (H2 2026)
+## Phase 7: Community & Growth (H2 2026)
 
 **Target Date:** July-Dec 2026 | **Status:** Roadmap
 
@@ -339,13 +382,14 @@ Community feedback shapes AgentLens roadmap. To contribute:
 2026
 ├── Mar: Phase 3 (v0.6.0 — Quality, Infrastructure) ✅
 ├── Mar: Phase 4 (v0.7.0 — LLM Settings, Autopsy, MCP) ✅
-├── Apr-Jun: Phase 5 (v0.8.0 — PostgreSQL, RBAC)
-├── Jul-Sep: Phase 6 (Community, Ecosystem)
+├── Mar: Phase 5 (v0.8.0 — Plugin System, Prompts, Evaluation) ✅
+├── Apr-Jun: Phase 6 (v0.9.0 — PostgreSQL, RBAC)
+├── Jul-Sep: Phase 7 (Community, Ecosystem)
 └── Oct-Dec: v1.0.0 planning
 
 2026+
-├── H1 2026: v1.0.0 (Semantic versioning)
-├── H2 2026: Enterprise features
+├── H1 2026: v1.0.0 (Semantic versioning, PostgreSQL)
+├── H2 2026: Enterprise features, multi-tenant org scoping
 └── Future: Cloud offering (optional)
 ```
 
@@ -356,21 +400,23 @@ Community feedback shapes AgentLens roadmap. To contribute:
   - Metrics: 100% prod coverage, 231 tests, 18-page docs site, 6 GitHub badges ✅
 - **v0.7.0 (Mar)** — LLM Settings, Autopsy, MCP Integration
   - Metrics: Encrypted credentials, AI failure analysis, MCP tracing ✅
+- **v0.8.0 (Mar)** — Plugin System, Prompt Versioning, LLM-as-Judge Evaluation
+  - Metrics: 12+ tests per module, plugin auto-discovery, prompt diffs, eval dashboard ✅
 
 ### Q2 2026 (Apr-Jun)
-- **Release:** v0.8.0 (May-Jun)
+- **Release:** v0.9.0 (May-Jun)
 - **Focus:** PostgreSQL backend, RBAC, multi-instance scaling
 - **Metrics:** 500+ GitHub stars, PostgreSQL support, 10K PyPI/month
 
 ### Q3 2026 (Jul-Sep)
-- **Release:** v0.9.0 (patches)
+- **Release:** v1.0.0 (patches)
 - **Focus:** Community ecosystem, marketplace, export integrations
 - **Metrics:** 750+ GitHub stars, 50K PyPI/month, plugin ecosystem
 
 ### Q4 2026 (Oct-Dec)
-- **Release:** v1.0.0 (Dec)
-- **Focus:** Stable API, semantic versioning, enterprise support
-- **Metrics:** 1000+ GitHub stars, production-grade stability
+- **Release:** v1.1.0 (Dec)
+- **Focus:** Cloud offering beta, enterprise features
+- **Metrics:** 1000+ GitHub stars, production-grade stability, cloud beta users
 
 ## Feedback & Questions
 

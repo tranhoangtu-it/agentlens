@@ -110,6 +110,28 @@ AgentLens is a self-hosted, open-source AI agent observability platform. Unlike 
 - [x] New span types: `mcp.tool_call`, `mcp.resource_read`, `mcp.prompt_get`
 - [x] Support via optional dependency: `pip install agentlens[mcp]`
 
+### F14: Plugin System (Phase 2)
+- [x] `ServerPlugin` protocol with `on_trace_created()`, `on_trace_completed()`, `register_routes()` hooks
+- [x] Auto-discovery from `server/plugins/` directory
+- [x] Module-level `plugin` instance pattern
+- [x] Extensible API for custom trace handlers and routes
+
+### F15: Prompt Versioning (Phase 2)
+- [x] `PromptTemplate` and `PromptVersion` data models
+- [x] CRUD API endpoints for prompt management
+- [x] Version history tracking with unified diff support
+- [x] Dashboard Prompt Registry with version comparison viewer
+- [x] Metadata and variable tracking per version
+
+### F16: LLM-as-Judge Evaluation (Phase 2)
+- [x] `EvalCriteria` with numeric (1-5) and binary (pass/fail) scoring
+- [x] `EvalRun` to store LLM judge results (score + reasoning)
+- [x] Evaluation endpoints: POST /api/eval/criteria, CRUD operations
+- [x] Run evaluation API: POST /api/eval/run for batch evaluation
+- [x] Auto-eval on trace completion (opt-in per criteria)
+- [x] Dashboard Eval Dashboard with criteria management and score visualization
+- [x] Integration with user's configured LLM provider
+
 ## Non-Functional Requirements
 
 ### Performance
@@ -164,7 +186,7 @@ Your Agent (Python)          AgentLens Server          Browser Dashboard
 | Testing | pytest, httpx, respx (server/Python SDK); vitest (TypeScript SDK) |
 | Deployment | Docker (multi-stage), PyPI, npm |
 
-## Key Features (v0.7.0)
+## Key Features (v0.8.0)
 
 1. **Live trace streaming** — Watch agent think in real-time
 2. **Agent topology graph** — Interactive DAG of tool calls, handoffs
@@ -181,7 +203,11 @@ Your Agent (Python)          AgentLens Server          Browser Dashboard
 13. **LLM Settings** — BYO API keys for OpenAI, Anthropic, Google with encrypted storage
 14. **AI Autopsy** — AI-powered failure analysis using user's LLM provider
 15. **MCP Integration** — Trace Model Context Protocol servers (Python + TypeScript)
-16. **Self-hosted** — Your data, your machine
+16. **Plugin System** — Extensible server plugins for trace handlers and custom routes
+17. **Prompt Versioning** — Manage prompt templates with version history and diffs
+18. **LLM-as-Judge Evaluation** — Assess agent outputs with criteria-based LLM evaluation (numeric/binary scoring)
+19. **Span Processors** — SDK hooks for in-flight span observation/modification (on_start/on_end)
+20. **Self-hosted** — Your data, your machine
 
 ## Success Metrics
 

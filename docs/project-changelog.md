@@ -2,6 +2,85 @@
 
 All notable changes documented. Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.8.0] — 2026-03-29
+
+**Version:** 0.8.0 | **Status:** Production | **Release Type:** Feature Release
+
+### Added
+
+#### Plugin System
+- **`ServerPlugin` protocol** — Extensible plugin interface
+- **Auto-discovery** — Plugins auto-loaded from `server/plugins/` directory
+- **Lifecycle Hooks:**
+  - `on_trace_created(trace_id, agent_name, span_count)` — Called on trace ingestion
+  - `on_trace_completed(trace_id, agent_name)` — Called on trace completion
+  - `register_routes(app)` — Register custom API endpoints at startup
+- **Error Handling** — Plugin exceptions logged, never crash server
+- **`plugin_loader.py`** — `load_plugins()`, `notify_trace_created()`, `notify_trace_completed()`
+
+#### Prompt Versioning
+- **PromptTemplate & PromptVersion models** — Track prompt templates with version history
+- **POST /api/prompts** — Create prompt template
+- **GET /api/prompts** — List user's prompt templates
+- **GET /api/prompts/{id}** — Get prompt with version history
+- **POST /api/prompts/{id}/versions** — Create new version (auto-increment)
+- **GET /api/prompts/{id}/versions/{v}** — Get specific version
+- **GET /api/prompts/{id}/diff** — Unified diff between two versions
+- **Version Metadata** — Track variables, author notes, arbitrary metadata per version
+- **User Isolation** — Prompts scoped by user_id
+- **Dashboard Prompt Registry** — UI for managing prompts and viewing diffs
+- **`prompt_models.py`, `prompt_storage.py`, `prompt_routes.py`** — Implementation modules
+
+#### LLM-as-Judge Evaluation
+- **EvalCriteria & EvalRun models** — Define and run LLM-based quality assessments
+- **Score Types:** Numeric (1-5) and binary (pass/fail)
+- **POST /api/eval/criteria** — Create evaluation criteria
+- **GET /api/eval/criteria** — List criteria
+- **PUT /api/eval/criteria/{id}** — Update criteria
+- **DELETE /api/eval/criteria/{id}** — Delete criteria
+- **POST /api/eval/run** — Run evaluation on one or more traces
+- **GET /api/eval/runs** — List evaluation results (paginated)
+- **GET /api/eval/scores** — Get all scores for a trace
+- **Auto-Eval** — Optional auto-evaluation on trace completion per criteria
+- **LLM Integration** — Uses user's configured LLM provider from settings
+- **Judge Prompt** — Automatic prompt construction from criteria rubric
+- **Response Parsing** — JSON extraction with score clamping and error handling
+- **Dashboard Eval Dashboard** — Criteria management and score visualization
+- **`eval_models.py`, `eval_storage.py`, `eval_runner.py`, `eval_routes.py`** — Implementation modules
+
+#### SDK Span Processors
+- **`SpanProcessor` protocol** — Lifecycle hooks for span observation
+- **`on_start(span)` hook** — Called when span starts (pushed to stack)
+- **`on_end(span)` hook** — Called when span ends (popped from stack)
+- **`Tracer.add_processor()`** — Register processor for span lifecycle events
+- **Error Handling** — Processor exceptions logged, never block trace
+- **Use Cases** — Custom metrics, span modification, observability integration
+
+### Changed
+- Version bumped to v0.8.0
+- Database schema: added PromptTemplate, PromptVersion, EvalCriteria, EvalRun tables
+- FastAPI main.py: added prompt and evaluation route handlers, plugin loader integration
+- SDK tracer.py: added SpanProcessor protocol and processor management
+
+### Dependencies
+- No new dependencies added (plugin system, prompt versioning, evaluation use existing stack)
+
+### Testing
+- Added 12+ tests for plugin loader (loading, error handling, hooks)
+- Added 12+ tests for prompt storage (CRUD, diffs, versioning)
+- Added 14+ tests for evaluation runner (judge prompt, LLM parsing, scoring)
+- Total test count: 170+; coverage remains 90%+
+
+### Upgrade Instructions
+
+**From v0.7.0 to v0.8.0:**
+- Database migrations auto-run on startup (PromptTemplate, PromptVersion, EvalCriteria, EvalRun tables)
+- No breaking API changes
+- Optional: Create `server/plugins/` directory to add custom plugins
+- Optional: Add `Tracer.add_processor()` calls in SDK code for span lifecycle hooks
+
+---
+
 ## [0.7.0] — 2026-03-29
 
 **Version:** 0.7.0 | **Status:** Production | **Release Type:** Feature Release

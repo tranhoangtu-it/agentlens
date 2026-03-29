@@ -1,4 +1,4 @@
-# AgentLens v0.5.0 — System Architecture
+# AgentLens v0.8.0 — System Architecture
 
 ## High-Level Architecture
 
@@ -129,12 +129,24 @@ All endpoints except `/api/health` and `/api/auth/*` registration/login require 
 | `/api/traces/{id}/autopsy` | POST | JWT/ApiKey | Request AI failure analysis for trace |
 | `/api/traces/{id}/autopsy` | GET | JWT/ApiKey | Retrieve autopsy results (cached) |
 | `/api/traces/{id}/autopsy` | DELETE | JWT/ApiKey | Delete autopsy analysis |
+| `/api/prompts` | POST | JWT/ApiKey | Create prompt template |
+| `/api/prompts` | GET | JWT/ApiKey | List prompt templates |
+| `/api/prompts/{id}` | GET | JWT/ApiKey | Get prompt with all versions |
+| `/api/prompts/{id}/versions` | POST | JWT/ApiKey | Create new prompt version |
+| `/api/prompts/{id}/diff` | GET | JWT/ApiKey | Diff two versions (v1, v2 query params) |
+| `/api/eval/criteria` | POST | JWT/ApiKey | Create evaluation criteria |
+| `/api/eval/criteria` | GET | JWT/ApiKey | List evaluation criteria |
+| `/api/eval/criteria/{id}` | PUT | JWT/ApiKey | Update evaluation criteria |
+| `/api/eval/criteria/{id}` | DELETE | JWT/ApiKey | Delete evaluation criteria |
+| `/api/eval/run` | POST | JWT/ApiKey | Run evaluation on traces |
+| `/api/eval/runs` | GET | JWT/ApiKey | List evaluation runs |
+| `/api/eval/scores` | GET | JWT/ApiKey | Get eval scores for trace |
 
 **Middleware**
 - GZipMiddleware (compress JSON >1KB)
 - CORSMiddleware (allow all origins for dev)
 
-**Database** (`server/models.py`, `server/auth_models.py`, `server/alert_models.py`)
+**Database** (`server/models.py`, `server/auth_models.py`, `server/alert_models.py`, `server/prompt_models.py`, `server/eval_models.py`)
 
 ```python
 class User:                        # auth_models.py
@@ -233,6 +245,54 @@ class Autopsy:                     # autopsy_models.py
     error_message: str [NULLABLE]  # Error details if failed
     created_at: datetime
     updated_at: datetime
+
+class PromptTemplate:              # prompt_models.py
+    id: str [PK]
+    user_id: str [INDEX]
+    name: str
+    latest_version: int
+    created_at: datetime
+    updated_at: datetime
+    # Index: (user_id, name) UNIQUE
+
+class PromptVersion:               # prompt_models.py
+    id: str [PK]
+    prompt_id: str [INDEX]
+    user_id: str [INDEX]
+    version: int
+    content: str
+    variables_json: str            # JSON array of variable names
+    metadata_json: str             # JSON object of arbitrary metadata
+    created_at: datetime
+    # Index: (prompt_id, version) UNIQUE
+
+class EvalCriteria:                # eval_models.py
+    id: str [PK]
+    user_id: str [INDEX]
+    name: str
+    description: str
+    rubric: str
+    score_type: str                # "numeric" (1-5) | "binary" (pass/fail)
+    agent_name: str                # "*" = all agents, otherwise specific agent name
+    auto_eval: bool                # auto-evaluate on trace completion
+    enabled: bool [INDEX]
+    created_at: datetime
+    updated_at: datetime
+    # Index: (user_id, agent_name)
+
+class EvalRun:                     # eval_models.py
+    id: str [PK]
+    criteria_id: str [INDEX]
+    trace_id: str [INDEX]
+    user_id: str [INDEX]
+    score: float                   # 1-5 (numeric) or 0/1 (binary)
+    reasoning: str                 # LLM judge's explanation
+    llm_provider: str              # Provider used for evaluation
+    llm_model: str                 # Model used for evaluation
+    prompt_name: str [NULLABLE]    # Optional prompt template used
+    prompt_version: int [NULLABLE] # Optional prompt version used
+    created_at: datetime
+    # Index: (criteria_id, trace_id), (user_id, created_at)
 ```
 
 **Storage** (`server/storage.py`)
@@ -289,6 +349,8 @@ class Autopsy:                     # autopsy_models.py
 - `Tracer.log()` — Add log entries to span metadata
 - `Tracer.configure()` — Set server_url, batch settings
 - `Tracer.add_exporter()` — Attach OTel or custom exporters
+- `Tracer.add_processor()` — Attach span processors for lifecycle hooks
+- `SpanProcessor` protocol — `on_start(span)` / `on_end(span)` hooks
 
 **Transport** (`transport.py`)
 - HTTPClient wrapper (httpx)
@@ -430,6 +492,28 @@ GET /api/traces/compare?left={id1}&right={id2}
 # 4. Browser: React Flow renders both topologies
 # 5. Span diff panel shows insertions/deletions/matches
 ```
+
+**Plugin System** (`server/plugin_protocol.py`, `server/plugin_loader.py`)
+- `ServerPlugin` protocol — `on_trace_created()`, `on_trace_completed()`, `register_routes(app)`
+- Auto-discovery from `server/plugins/` directory
+- Each plugin module exposes a module-level `plugin` instance
+- Plugins notified after trace ingestion and completion
+- Error handling: plugin exceptions never crash server (logged as warnings)
+
+**Prompt Versioning** (`server/prompt_models.py`, `server/prompt_storage.py`, `server/prompt_routes.py`)
+- `PromptTemplate` — Named prompt owned by user, tracks latest version
+- `PromptVersion` — Immutable snapshot at version N with content, variables, metadata
+- CRUD APIs: create template, list templates, add version, get specific version, diff versions
+- Unified diff algorithm for version comparison (unified_diff format)
+- Dashboard: Prompt Registry page with version viewer and diff UI
+
+**Evaluation System** (`server/eval_models.py`, `server/eval_storage.py`, `server/eval_runner.py`, `server/eval_routes.py`)
+- `EvalCriteria` — Named evaluation rubric (numeric 1-5 or binary pass/fail scoring)
+- `EvalRun` — Result of LLM judge assessment (score + reasoning)
+- LLM-as-Judge pattern: build prompt from criteria + trace, call user's LLM, parse JSON response
+- Auto-eval on trace completion (opt-in per criteria)
+- Dashboard: Eval Dashboard with criteria management and score visualization
+- Supports both user-provided and built-in LLM providers
 
 ## Performance Optimizations
 

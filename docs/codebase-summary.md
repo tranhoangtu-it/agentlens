@@ -1,4 +1,4 @@
-# AgentLens v0.6.0 — Codebase Summary
+# AgentLens v0.8.0 — Codebase Summary
 
 **Languages:** Python, TypeScript, JavaScript, HTML, CSS
 
@@ -118,7 +118,22 @@
 #### OTel Mapper (1 file, ~80 LOC)
 - **`otel_mapper.py`** — Pure function: map_otel_trace(otel_payload) → AgentLens TraceIn. Kind mapping: SERVER→agent_run, CLIENT→tool_call, INTERNAL→llm_call. agent_name from resource.attributes["service.name"].
 
-#### Tests (7 files, ~86 tests, ~900 LOC)
+#### Plugin System (2 files, ~150 LOC)
+- **`plugin_protocol.py`** — ServerPlugin protocol: on_trace_created(), on_trace_completed(), register_routes()
+- **`plugin_loader.py`** — Auto-discovery from server/plugins/; load_plugins(), notify_trace_created(), notify_trace_completed()
+
+#### Prompt Versioning (3 files, ~250 LOC)
+- **`prompt_models.py`** — PromptTemplate + PromptVersion SQLModel tables and Pydantic schemas
+- **`prompt_storage.py`** — CRUD: create_prompt, list_prompts, get_prompt, add_version, get_version, list_versions, diff_versions (unified diff)
+- **`prompt_routes.py`** — POST/GET /api/prompts, POST /api/prompts/{id}/versions, GET /api/prompts/{id}/diff endpoints
+
+#### Evaluation System (4 files, ~350 LOC)
+- **`eval_models.py`** — EvalCriteria + EvalRun SQLModel tables. Numeric (1-5) or binary (pass/fail) scoring. auto_eval flag for auto-evaluation on trace completion.
+- **`eval_storage.py`** — CRUD: create_criteria, list_criteria, update_criteria, delete_criteria, create_eval_run, list_eval_runs, get_eval_scores
+- **`eval_runner.py`** — run_eval(criteria, trace, spans, provider, api_key, model) → {score, reasoning}. Builds judge prompt, calls LLM, parses JSON response. Handles numeric/binary score clamping.
+- **`eval_routes.py`** — POST/GET/PUT/DELETE /api/eval/criteria, POST /api/eval/run, GET /api/eval/runs, GET /api/eval/scores endpoints
+
+#### Tests (8 files, ~100+ tests, ~1000 LOC)
 - **`test_api_endpoints.py`** — Endpoint tests: POST /traces, POST /spans, GET /traces (filters), GET /compare
 - **`test_otel_ingestion.py`** — OTel mapper unit tests + /api/otel/v1/traces integration (8 tests)
 - **`test_sse.py`** — Event bus: publish, subscribe, per-user filtering
@@ -229,10 +244,13 @@ sdk/
 | `server/auth_routes.py` | 27 | 90% |
 | `server/alert_routes.py` | 14 | 88% |
 | `server/otel_mapper.py` | 8 | 95% |
+| `server/plugin_loader.py` | 8 | 92% |
+| `server/prompt_storage.py` | 12 | 93% |
+| `server/eval_runner.py` | 14 | 90% |
 | `sdk/tracer.py` | 18 | 92% |
 | `sdk/transport.py` | 20 | 85% |
 | `sdk/cost.py` | 14 | 100% |
-| **Total** | **139** | **86%** |
+| **Total** | **170+** | **90%+** |
 
 ## Build & Deployment
 
