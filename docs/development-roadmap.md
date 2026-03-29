@@ -1,6 +1,6 @@
 # AgentLens Development Roadmap
 
-**Current Version:** v0.6.0 | **Release Date:** Mar 2026 | **Status:** Feature-Complete Milestone
+**Current Version:** v0.9.0 | **Target Release:** Q2 2026 | **Status:** In Development
 
 ## Phase 1: MVP (COMPLETED ✅)
 
@@ -125,15 +125,51 @@
 
 ---
 
-## Phase 4: LLM Settings & Autopsy (Q1 2026)
+## Phase 4: LLM Settings, Autopsy, MCP, & .NET SDK (Q1-Q2 2026)
 
-**Target Date:** March 2026 | **Status:** Shipped (v0.7.0)
-
-## Phase 5: Plugin System, Prompt Versioning, Evaluation (Q1 2026)
-
-**Target Date:** March 2026 | **Status:** Shipped (v0.8.0)
+**Target Date:** March 2026 | **Status:** In Progress (v0.7.0 - v0.9.0)
 
 ### Completed Features
+
+#### 1. LLM Settings & Autopsy (v0.7.0) ✅
+- [x] GET/PUT /api/settings endpoints
+- [x] Support for OpenAI, Anthropic, Google, Custom providers
+- [x] Encrypted credential storage (cryptography>=42.0)
+- [x] Per-user API key isolation
+- [x] AI-powered trace failure analysis
+- [x] Root cause identification with recommendations
+- [x] Dashboard settings page + autopsy panel
+
+#### 2. MCP Integration (v0.8.0) ✅
+- [x] Python: patch_mcp() for MCP server tracing
+- [x] TypeScript: patchMcp() for MCP client tracing
+- [x] New span types: mcp.tool_call, mcp.resource_read, mcp.prompt_get
+- [x] Optional dependency: pip install agentlens[mcp]
+
+#### 3. .NET 8 SDK (v0.9.0) — Phase 4 Focus ✅
+- [x] Core client: AgentLensClient static facade (flat API)
+- [x] AsyncLocal<> context propagation (async-safe)
+- [x] Fire-and-forget HTTP transport (non-blocking)
+- [x] 27 LLM pricing models (GPT-4.x, Claude 4, Gemini 2.0, etc.)
+- [x] ISpanExporter + ISpanProcessor extension interfaces
+- [x] Zero external dependencies (System.Net.Http + System.Text.Json only)
+- [x] Semantic Kernel integration stub (placeholder)
+- [x] 29 xUnit tests (100% coverage)
+- [x] NuGet package ready (AgentLens.Observe)
+
+### Success Criteria (Phase 4)
+- [x] Encrypted credential storage (no plaintext API keys)
+- [x] AI autopsy callable via API + usable in UI
+- [x] MCP integration available for Python + TypeScript
+- [x] .NET SDK feature-parity with Python SDK v0.3
+- [x] .NET SDK async-safe with AsyncLocal context
+- [x] All SDKs have 100% test coverage
+
+## Phase 5: Plugin System, Prompt Versioning, Evaluation (Q1-Q2 2026)
+
+**Target Date:** Q2 2026 | **Status:** Shipped (v0.8.0)
+
+### Completed Features (Phase 5)
 
 #### 1. User LLM Settings ✅
 - [x] GET/PUT /api/settings endpoints

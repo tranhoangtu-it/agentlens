@@ -1,6 +1,6 @@
-# AgentLens v0.6.0 — Product Overview & PDR
+# AgentLens v0.9.0 — Product Overview & PDR
 
-**Version:** 0.6.0 | **Release Date:** Mar 2026 | **Status:** Production
+**Version:** 0.9.0 | **Release Date:** Q2 2026 (Target) | **Status:** In Development
 
 ## Executive Summary
 
@@ -18,9 +18,10 @@ AgentLens is a self-hosted, open-source AI agent observability platform. Unlike 
 
 ## Distribution
 
-- **PyPI (Python SDK):** `pip install agentlens-observe==0.6.0`
-- **npm (TypeScript SDK):** `npm install agentlens-observe@0.6.0`
-- **Docker:** `docker run -p 3000:3000 tranhoangtu/agentlens-observe:0.6.0`
+- **PyPI (Python SDK):** `pip install agentlens-observe==0.9.0`
+- **npm (TypeScript SDK):** `npm install agentlens-observe@0.9.0`
+- **NuGet (.NET SDK):** `dotnet add package AgentLens.Observe` (v0.1.0)
+- **Docker:** `docker run -p 3000:3000 tranhoangtu/agentlens-observe:0.9.0`
 - **GitHub:** `github.com/tranhoangtu-it/agentlens-observe`
 - **Docs Site:** https://agentlens-observe.pages.dev
 - **License:** MIT
@@ -61,11 +62,14 @@ AgentLens is a self-hosted, open-source AI agent observability platform. Unlike 
 ### F6: SDK & Integrations
 - [x] Python SDK v0.3.0 (3.10+)
 - [x] TypeScript SDK v0.1.0 (Node 18+, zero prod dependencies)
+- [x] .NET SDK v0.1.0 (net8.0+, zero external dependencies)
 - [x] Batch transport with configurable queue + auto-flush
 - [x] OpenTelemetry span exporter bridge
-- [x] Framework integrations: LangChain, CrewAI, AutoGen, LlamaIndex, Google ADK
-- [x] Custom logging via `agentlens.log()` / `agentlens.log()`
+- [x] Framework integrations: LangChain, CrewAI, AutoGen, LlamaIndex, Google ADK (Python)
+- [x] Semantic Kernel integration stub (.NET, future expansion)
+- [x] Custom logging via `agentlens.log()` / `AgentLensClient.Log()`
 - [x] ESM + CJS dual output (TypeScript SDK)
+- [x] AsyncLocal-based context propagation (.NET, async-safe)
 
 ### F8: Multi-Tenant Authentication
 - [x] User registration + JWT login (HS256, 24h, Bearer token)
@@ -86,9 +90,9 @@ AgentLens is a self-hosted, open-source AI agent observability platform. Unlike 
 - [x] Optional webhook POST delivery (fire-and-forget, 5s timeout)
 
 ### F10: Testing & Quality
-- [x] 231 tests (86 server + 52 Python SDK + 30 TypeScript SDK + 63 integration)
+- [x] 260+ tests (86 server + 52 Python SDK + 30 TypeScript SDK + 29 .NET SDK + 63 integration)
 - [x] 100% production code coverage
-- [x] pytest, httpx, respx, vitest test stack
+- [x] pytest, httpx, respx, vitest, xunit test stack
 
 ### F11: LLM Settings & Configuration
 - [x] User LLM settings endpoints (GET/PUT /api/settings)

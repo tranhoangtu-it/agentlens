@@ -1,6 +1,6 @@
-# AgentLens v0.8.0 — Codebase Summary
+# AgentLens v0.9.0 — Codebase Summary
 
-**Languages:** Python, TypeScript, JavaScript, HTML, CSS
+**Languages:** Python, TypeScript, JavaScript, C#, HTML, CSS
 
 ## Quick Stats
 
@@ -11,11 +11,12 @@
 | **React Flow Bundle** | 232KB |
 | **Compare Page Bundle** | 14KB (lazy) |
 | **Server Tests** | 86 tests |
-| **SDK Tests** | 52 tests (Python) + 30 tests (TypeScript) |
+| **SDK Tests** | 52 tests (Python) + 30 tests (TypeScript) + 29 tests (.NET) |
 | **Integration Tests** | 63 tests |
 | **Coverage** | 100% (prod code) |
 | **Python Version** | 3.10+ (SDK), 3.11+ (Server) |
 | **Node Version** | 18+ |
+| **.NET Version** | 8.0+ |
 
 ## File-by-File Breakdown
 
@@ -195,6 +196,29 @@
 - **`pyproject.toml`** — Package metadata, dependencies (httpx, pytest, respx), entry point
 - **`README.md`** — SDK usage guide, framework examples, API reference
 
+### SDK (.NET) (`sdk-dotnet/`, ~400 LOC, v0.1.0)
+
+#### Core Library (9 files, ~400 LOC)
+- **`AgentLensClient.cs`** — Static facade (flat module-level API). Configure(), Trace(), Span(), Log(). AsyncLocal<> context propagation for async safety.
+- **`ActiveTrace.cs`** — Trace state container. Maintains span stack. Flushes on disposal via Transport.PostTrace().
+- **`TraceScope.cs`** — IAsyncDisposable wrapper for root span. Owns ActiveTrace. Manages context cleanup.
+- **`SpanContext.cs`** — ISpanContext wrapper for child spans. Fluent builder (SetOutput, SetCost, Log, SetMetadata). Calls processors OnStart/OnEnd.
+- **`SpanData.cs`** — Wire format (span_id, parent_id, trace_id, name, type, start_ms, end_ms, input, output, cost_usd, metadata).
+- **`Transport.cs`** — Fire-and-forget HTTP: PostTrace (full batch), PostSpans (streaming). Non-blocking Task.Run(). Uses System.Net.Http + System.Text.Json only.
+- **`Cost.cs`** — LLM pricing table (27 models: GPT-4.x, Claude 3.5/4, Gemini 2.0, DeepSeek, Llama 3.3, etc.). CalculateCost(model, inputTokens, outputTokens) → USD.
+- **`SpanExporter.cs`** — Interface for custom span exporters. ExportSpan() + Shutdown().
+- **`SpanProcessor.cs`** — Interface for span lifecycle hooks. OnStart() + OnEnd() (sync, fast, no exceptions).
+
+#### Integrations (1 file, ~20 LOC)
+- **`Integrations/SemanticKernelIntegration.cs`** — Stub placeholder for future Semantic Kernel auto-instrumentation.
+
+#### Tests (2 files, 29 tests, ~200 LOC)
+- **`TracerTests.cs`** — 18 tests: Trace/Span lifecycle, context propagation, async safety, truncation, logging, fluent API, nesting, processors, exporters, transport.
+- **`CostTests.cs`** — 11 tests: Known/unknown models, provider prefix stripping, version matching, case handling, zero tokens, multi-vendor pricing.
+
+#### Config
+- **`AgentLens.csproj`** — Target: net8.0. Package: AgentLens.Observe (NuGet). Zero external dependencies (System.Net.Http, System.Text.Json only).
+
 ### Utilities & Config
 
 #### Root
@@ -228,10 +252,19 @@ server/
 ├── Pydantic 2.0 (validation)
 └── pytest (testing)
 
-sdk/
+sdk/ (Python)
 ├── httpx (HTTP client)
 ├── Pydantic (validation)
 └── For testing: pytest, respx (HTTP mocking)
+
+sdk-ts/ (TypeScript)
+├── Zero production dependencies
+└── Dev: vitest, tsup (bundler)
+
+sdk-dotnet/ (.NET)
+├── System.Net.Http (built-in)
+├── System.Text.Json (built-in)
+└── For testing: xunit (test framework)
 ```
 
 ## Test Coverage
@@ -250,15 +283,19 @@ sdk/
 | `sdk/tracer.py` | 18 | 92% |
 | `sdk/transport.py` | 20 | 85% |
 | `sdk/cost.py` | 14 | 100% |
-| **Total** | **170+** | **90%+** |
+| `sdk-dotnet/TracerTests.cs` | 18 | 100% |
+| `sdk-dotnet/CostTests.cs` | 11 | 100% |
+| **Total** | **231+** | **100%** |
 
 ## Build & Deployment
 
 ### Development Build
 ```bash
-cd dashboard && npm run dev      # React dev server (Vite, :5173)
+cd dashboard && npm run dev              # React dev server (Vite, :5173)
 cd server && uvicorn main:app --reload --port 8000
-cd sdk && pip install -e ".[dev]"
+cd sdk && pip install -e ".[dev]"        # Python SDK
+cd sdk-ts && npm install && npm run dev  # TypeScript SDK
+cd sdk-dotnet && dotnet build            # .NET SDK
 ```
 
 ### Production Build
