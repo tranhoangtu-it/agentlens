@@ -66,14 +66,14 @@ def validate_webhook_url(url: str) -> None:
 
 
 def publish_alert_sse(rule: AlertRule, event: AlertEvent) -> None:
-    """Publish alert_fired SSE event for real-time dashboard updates."""
+    """Publish alert_fired SSE event scoped to the rule owner."""
     bus.publish("alert_fired", {
         "alert_id": event.id,
         "rule_name": rule.name,
         "agent_name": event.agent_name,
         "metric": event.metric,
         "message": event.message,
-    })
+    }, user_id=rule.user_id)
 
 
 def fire_webhook(url: str, event: AlertEvent) -> None:

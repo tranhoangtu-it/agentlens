@@ -95,6 +95,7 @@ def _evaluate_single_rule(
     if rule.mode == "relative":
         baseline = _get_baseline_avg(
             session, trace.agent_name, rule.metric, rule.window_size, trace.id,
+            user_id=trace.user_id,
         )
         if baseline is None:
             return None  # No baseline — skip relative rule
@@ -156,8 +157,9 @@ def _get_baseline_avg(
     metric: str,
     window: int,
     exclude_trace_id: str,
+    user_id: Optional[str] = None,
 ) -> Optional[float]:
-    """Get rolling average of a metric from last N completed traces."""
+    """Get rolling average of a metric from last N completed traces (tenant-scoped)."""
     stmt = (
         select(Trace)
         .where(
@@ -168,6 +170,8 @@ def _get_baseline_avg(
         .order_by(col(Trace.created_at).desc())
         .limit(window)
     )
+    if user_id:
+        stmt = stmt.where(Trace.user_id == user_id)
     traces = list(session.exec(stmt).all())
     if not traces:
         return None
