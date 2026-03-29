@@ -16,6 +16,10 @@
 
 ---
 
+<p align="center">
+  <img src="assets/agentlens-demo.gif" alt="AgentLens Demo" width="800">
+</p>
+
 ## The Problem
 
 When your AI agent fails in production, you're blind. Logs show API calls, but they don't show you **WHY** the agent chose tool A over tool B, or **WHERE** its reasoning went wrong.
