@@ -17,7 +17,7 @@ Self-hosted observability platform for debugging AI agents. Trace tool calls, in
 - **Plugin System** — SDK-side SpanProcessors + server-side auto-discovered plugins
 - **Alerting** — Rule-based alerts on cost, latency, error rate with webhook notifications
 - **Real-time Dashboard** — SSE-powered live updates, topology graphs, cost charts
-- **SDKs** — Python and TypeScript with integrations for LangChain, CrewAI, AutoGen, LlamaIndex, Google ADK, MCP
+- **SDKs** — Python, TypeScript, and .NET with integrations for LangChain, CrewAI, AutoGen, LlamaIndex, Google ADK, MCP, Semantic Kernel
 - **CLI Tool** — Go-based CLI for traces list/show/tail/diff and stdin pipe ingestion
 - **VS Code Extension** — Sidebar trace tree, detail webview, status bar
 
@@ -26,6 +26,7 @@ Self-hosted observability platform for debugging AI agents. Trace tool calls, in
 ```
 sdk/                # Python SDK (PyPI: agentlens-observe)
 sdk-ts/             # TypeScript SDK (npm: agentlens-observe)
+sdk-dotnet/         # .NET SDK (NuGet: AgentLens.Observe)
 server/             # FastAPI backend (Python)
 dashboard/          # React web UI (TypeScript)
 cli/                # Go CLI tool
@@ -54,6 +55,11 @@ pip install agentlens-observe[langchain,mcp]
 npm install agentlens-observe
 ```
 
+**.NET**
+```bash
+dotnet add package AgentLens.Observe
+```
+
 ## Usage
 
 ```python
@@ -63,6 +69,21 @@ lens = AgentLens(endpoint="http://localhost:8000")
 
 with lens.trace("my-agent"):
     lens.log_tool_call("search", {"query": "test"})
+```
+
+### .NET
+
+```csharp
+using AgentLens;
+
+AgentLensClient.Configure(serverUrl: "http://localhost:8000");
+
+using (AgentLensClient.Trace("my-agent"))
+{
+    using var span = AgentLensClient.Span("search", "tool_call");
+    span.SetOutput("results");
+    span.SetCost("gpt-4o", inputTokens: 100, outputTokens: 50);
+}
 ```
 
 ### MCP Tracing
@@ -111,6 +132,9 @@ pytest
 # TypeScript SDK
 cd sdk-ts && npm install
 npm run build && npm run test
+
+# .NET SDK
+cd sdk-dotnet && dotnet build && dotnet test
 ```
 
 ## Environment Variables

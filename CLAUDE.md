@@ -14,6 +14,7 @@ Monorepo with 6 packages:
 - **dashboard/** — React 19 + TypeScript SPA. Vite, Tailwind CSS, React Flow for topology graphs, Recharts for cost charts.
 - **sdk/** — Python SDK (`agentlens-observe` on PyPI). Framework integrations: LangChain, CrewAI, AutoGen, LlamaIndex, Google ADK, MCP, OpenTelemetry. SpanProcessor plugin hooks.
 - **sdk-ts/** — TypeScript SDK (`agentlens-observe` on npm). Built with tsup, dual CJS/ESM. MCP integration.
+- **sdk-dotnet/** — .NET 8 SDK (`AgentLens.Observe` on NuGet). AsyncLocal context, ISpanExporter/ISpanProcessor, Semantic Kernel stub.
 - **cli/** — Go CLI tool (Cobra). `traces list/show/tail/diff`, `push` (stdin pipe), `config`.
 - **vscode-extension/** — VS Code extension. Sidebar TreeView, WebView detail panel, status bar.
 
@@ -71,6 +72,13 @@ npm install
 npm run build       # tsup
 npm run test        # vitest
 npm run typecheck   # tsc --noEmit
+```
+
+### .NET SDK
+```bash
+cd sdk-dotnet
+dotnet build
+dotnet test         # 29 xUnit tests
 ```
 
 ### Go CLI
