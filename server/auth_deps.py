@@ -45,6 +45,15 @@ def get_current_user(request: Request) -> User:
             raise HTTPException(401, "Invalid API key")
         return user
 
+    # Query param token fallback (for EventSource/SSE which can't set headers)
+    token_param = request.query_params.get("token", "")
+    if token_param:
+        payload = decode_token(token_param)
+        if payload:
+            user = get_user_by_id(payload["sub"])
+            if user:
+                return user
+
     raise HTTPException(401, "Missing authentication")
 
 

@@ -78,7 +78,7 @@ export async function fetchTraces(filters: TraceFilters = {}): Promise<TracesRes
 }
 
 export async function fetchAgents(): Promise<AgentsResponse> {
-  const res = await fetch(`${BASE}/agents`)
+  const res = await fetchWithAuth(`${BASE}/agents`)
   if (!res.ok) throw new Error(`fetchAgents failed: ${res.status}`)
   return res.json() as Promise<AgentsResponse>
 }

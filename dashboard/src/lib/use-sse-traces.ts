@@ -31,8 +31,14 @@ export interface UseSSETracesResult {
   isConnected: boolean
 }
 
-const SSE_URL = '/api/traces/stream'
+const SSE_BASE_URL = '/api/traces/stream'
 const RECONNECT_DELAY_MS = 3000
+
+function getSseUrl(): string {
+  // EventSource doesn't support custom headers; pass token as query param
+  const token = localStorage.getItem('agentlens_token')
+  return token ? `${SSE_BASE_URL}?token=${encodeURIComponent(token)}` : SSE_BASE_URL
+}
 
 export function useSSETraces(): UseSSETracesResult {
   const [latestEvent, setLatestEvent] = useState<SSEEvent | null>(null)
@@ -47,7 +53,7 @@ export function useSSETraces(): UseSSETracesResult {
 
     function connect() {
       if (!active) return
-      const es = new EventSource(SSE_URL)
+      const es = new EventSource(getSseUrl())
       esRef.current = es
 
       es.onopen = () => { if (active) setIsConnected(true) }

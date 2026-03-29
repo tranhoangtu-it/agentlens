@@ -117,7 +117,7 @@ export async function resolveAlert(id: string): Promise<AlertEvent> {
 }
 
 export async function fetchAlertsSummary(): Promise<{ unresolved_count: number }> {
-  const res = await fetch(`${BASE}/alerts/summary`)
+  const res = await fetchWithAuth(`${BASE}/alerts/summary`)
   if (!res.ok) throw new Error(`fetchAlertsSummary failed: ${res.status}`)
   return res.json()
 }
