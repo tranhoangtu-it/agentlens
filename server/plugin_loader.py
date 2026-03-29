@@ -23,8 +23,7 @@ def load_plugins(app: FastAPI) -> list[ServerPlugin]:
     Each .py file in plugins/ must expose a module-level `plugin` attribute
     that implements the ServerPlugin protocol.
     """
-    global _plugins
-    _plugins = []
+    _plugins.clear()
 
     if not _PLUGINS_DIR.is_dir():
         logger.debug("No plugins directory found at %s", _PLUGINS_DIR)

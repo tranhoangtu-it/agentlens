@@ -11,11 +11,13 @@ from plugin_loader import load_plugins, notify_trace_created, notify_trace_compl
 
 
 @pytest.fixture(autouse=True)
-def clean_plugins(test_db):
-    """Ensure clean plugin state for each test. Depends on test_db so lifespan runs first."""
+def clean_plugins():
+    """Ensure clean plugin state independent of app lifecycle."""
+    saved = _plugins.copy()
     _plugins.clear()
     yield
     _plugins.clear()
+    _plugins.extend(saved)
 
 
 class FakePlugin:
